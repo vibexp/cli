@@ -26,6 +26,7 @@ import (
 	"github.com/vibexp/cli/internal/cli/resource"
 	"github.com/vibexp/cli/internal/cli/searchcmd"
 	"github.com/vibexp/cli/internal/cli/teamcmd"
+	"github.com/vibexp/cli/internal/cli/updatecmd"
 	"github.com/vibexp/cli/internal/cli/usercmd"
 	"github.com/vibexp/cli/internal/cli/versioncmd"
 	"github.com/vibexp/cli/internal/clictx"
@@ -34,6 +35,7 @@ import (
 	"github.com/vibexp/cli/internal/exitcode"
 	"github.com/vibexp/cli/internal/logging"
 	"github.com/vibexp/cli/internal/output"
+	"github.com/vibexp/cli/internal/update"
 )
 
 // defaultTimeout is the fallback request timeout when --timeout is unset.
@@ -188,6 +190,7 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 	root.AddCommand(feedcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(searchcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(attachmentcmd.New(resource.CredResolver(credResolver), getenv))
+	root.AddCommand(updatecmd.New())
 	root.AddCommand(versioncmd.New())
 
 	return root, st
@@ -211,6 +214,15 @@ func Execute(ctx context.Context, args []string) int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 	}
+
+	// After the command has produced its output, run the cached, non-blocking
+	// version check and print at most one upgrade notice to stderr. Skipped for
+	// `vibexp update` itself (it already reports version state). Suppressed for
+	// dev builds, CI, and VIBEXP_NO_UPDATE_CHECK via internal/update.
+	if len(args) == 0 || args[0] != "update" {
+		update.Notify(ctx, os.Stderr, os.Getenv)
+	}
+
 	return exitcode.FromError(err)
 }
 

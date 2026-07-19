@@ -278,6 +278,28 @@ vibexp api GET /api/v1/{team}/memories --paginate  # merge every page into one J
 | `2` | Usage error (bad flags/args) |
 | `4` | Authentication error |
 
+## Updating
+
+`vibexp` checks for a newer release in the background — at most once every 24h,
+cached in `~/.vibexp/state.json`, never blocking or failing your command. When a
+newer version exists it prints a single notice to stderr (stdout is never
+touched, so pipelines are unaffected).
+
+```bash
+vibexp update           # download, checksum-verify, and atomically self-replace
+vibexp update --check   # report whether an update is available, without installing
+```
+
+`vibexp update` only self-replaces binaries installed from GitHub Releases;
+Homebrew and `go install` builds refuse to self-update and print the correct
+command instead (`brew upgrade vibexp` / `go install …@latest`). The download is
+verified against the release `checksums.txt` before the swap — a mismatch aborts
+and leaves the current binary untouched.
+
+**Privacy & opt-out:** the check contacts only `api.github.com` and sends no
+identifying data beyond the HTTP request. It is automatically disabled in CI
+(`CI` is set) and can be turned off anywhere with `VIBEXP_NO_UPDATE_CHECK=1`.
+
 ## Logging
 
 Every invocation appends structured JSON-lines logs to `~/.vibexp/logs/cli.log`

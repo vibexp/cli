@@ -10,6 +10,7 @@ require (
 	github.com/knadh/koanf/v2 v2.1.2
 	github.com/spf13/cobra v1.8.1
 	github.com/vibexp/api-client-go v0.5.0
+	golang.org/x/mod v0.21.0
 	golang.org/x/term v0.34.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
