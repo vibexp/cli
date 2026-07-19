@@ -1,0 +1,26 @@
+# golangci-lint v2 configuration.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # The standard set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  settings:
+    errcheck:
+      # Writes to buffers / cobra output / stderr practically never fail and
+      # checking every one adds noise without catching bugs.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/vibexp/cli

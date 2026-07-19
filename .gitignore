@@ -1,0 +1,5 @@
+/bin/
+/dist/
+*.out
+# Built binary at repo root (anchored so it never ignores cmd/vibexp/).
+/vibexp
