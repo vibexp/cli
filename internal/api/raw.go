@@ -72,6 +72,27 @@ func (c *RawClient) Do(ctx context.Context, method, path string, body []byte, he
 	return c.doer.Do(req)
 }
 
+// DoStream sends a request whose body is streamed from r with an explicit
+// Content-Type (e.g. a multipart boundary type from Stream). Unlike Do it never
+// buffers the body into memory, so it is safe for large uploads. The body is not
+// replayable; this is used only with non-idempotent methods (POST), which the
+// Doer never retries.
+func (c *RawClient) DoStream(ctx context.Context, method, path, contentType string, r io.Reader) (*http.Response, error) {
+	url, err := c.resolveURL(path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, r)
+	if err != nil {
+		return nil, exitcode.Usage("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	if err := c.editor(ctx, req); err != nil {
+		return nil, err
+	}
+	return c.doer.Do(req)
+}
+
 // resolveURL joins a server-relative path to the base URL, rejecting absolute
 // URLs and path traversal.
 func (c *RawClient) resolveURL(path string) (string, error) {
