@@ -259,6 +259,24 @@ func TestPromptRenderFormatJSON(t *testing.T) {
 	}
 }
 
+// TestPromptRenderJQ verifies --jq routes render through the structured path
+// (operating on the API envelope) rather than the raw rendered-body shortcut.
+func TestPromptRenderJQ(t *testing.T) {
+	var cap promptCapture
+	srv := promptServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	out, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "render", "greet",
+		"--var", "env=prod", "--jq", ".rendered_body")
+	if code != 0 {
+		t.Fatalf("render --jq exit = %d, out=%q", code, out)
+	}
+	if !strings.Contains(out, "Hello prod in eu") {
+		t.Errorf("render --jq should operate on the envelope: %q", out)
+	}
+}
+
 func TestPromptRenderMissingVariable(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)

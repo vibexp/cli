@@ -55,9 +55,10 @@ func newRender(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				return err
 			}
 
-			// An explicit --format (flag or VIBEXP_FORMAT) means "give me the API
-			// response"; otherwise print only the rendered body, byte-for-byte.
-			if cmd.Flags().Changed("format") || getenv("VIBEXP_FORMAT") != "" {
+			// A requested format (--format / VIBEXP_FORMAT, both folded into
+			// rt.Format) or a --jq expression means "give me the API response";
+			// otherwise print only the rendered body, byte-for-byte (pipe-safe).
+			if rt.Format != "" || rt.JQ != "" {
 				return resource.Render(cmd, rt, getenv, raw, &renderSpec)
 			}
 			var env struct {
