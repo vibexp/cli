@@ -229,6 +229,24 @@ vibexp search "retry backoff" --type prompts --type memories # narrow by type
 vibexp search "auth" --project my-proj --format json         # scope + raw envelope
 ```
 
+### Attachments
+
+Upload files as attachments, streamed as `multipart/form-data` so memory stays
+bounded regardless of file size. Attachments are owned by a resource, so
+`upload`/`list` take `--owner-id` (required) and `--owner-type` (default
+`artifact`):
+
+```bash
+vibexp attachment upload ./build.log --owner-id <artifact-id>   # content type detected
+vibexp attachment upload ./data --owner-id <id> --content-type application/json
+vibexp attachment list --owner-id <artifact-id>                 # +pagination flags
+vibexp attachment delete <attachment-id>                        # --yes for scripts
+```
+
+The content type is detected from the file (extension, then a content sniff) and
+can be overridden with `--content-type`. A progress indicator is shown only on a
+terminal, so piped output stays clean.
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
