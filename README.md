@@ -143,6 +143,47 @@ vibexp memory delete <id>                         # prompts on a TTY; --yes for 
 `delete` refuses to run non-interactively without `--yes` (exit 2). Every verb
 honors `--format`/`--jq`.
 
+### Blueprints
+
+Full CRUD over blueprints — the standing-rules primitive. Blueprints are
+addressed by `(project, slug)`, so every single-item verb resolves a project
+(`--project`, `VIBEXP_PROJECT`, or the active context):
+
+```bash
+vibexp blueprint list --project my-proj                      # +pagination flags
+vibexp blueprint create rules --project my-proj \
+  --title "House rules" --body-file rules.md                 # --body-file <path|->
+vibexp blueprint get rules --project my-proj
+vibexp blueprint update rules --project my-proj --body-file rules.md
+vibexp blueprint delete rules --project my-proj              # --yes for scripts
+```
+
+### Prompts
+
+Full CRUD over the reusable-prompt library (team-scoped, addressed by slug),
+plus `render`:
+
+```bash
+vibexp prompt list --project my-proj                         # filter by project
+vibexp prompt create greet --project my-proj \
+  --name "Greeting" --body-file greet.tmpl
+vibexp prompt get greet
+vibexp prompt update greet --name "Greeting v2"
+vibexp prompt delete greet --yes
+```
+
+`prompt render` substitutes repeatable `--var key=value` pairs and prints the
+rendered text raw to stdout — pipe-safe, no decoration — so it drops straight
+into a shell pipeline or an AI-tool hook:
+
+```bash
+vibexp prompt render greet --var env=prod --var region=eu | your-tool
+vibexp prompt render greet --var env=prod --format json      # full API envelope
+```
+
+A missing required variable surfaces the API's validation error with field
+detail (exit 1); on a duplicate `--var` key the last value wins.
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
