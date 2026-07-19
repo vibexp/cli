@@ -31,7 +31,7 @@ func New(resolve StoreResolver, getenv config.Getenv) *cobra.Command {
 		Short: "Authenticate the CLI and inspect auth state",
 	}
 	cmd.AddCommand(
-		newLogin(resolve),
+		newLogin(resolve, getenv),
 		newStatus(resolve, getenv),
 		newLogout(resolve),
 	)

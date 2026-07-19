@@ -163,14 +163,6 @@ func TestAuthEnvPrecedenceOverStored(t *testing.T) {
 	}
 }
 
-func TestAuthLoginRejectsMissingMethod(t *testing.T) {
-	cfg, cs := authFixture(t, "http://unused.invalid")
-	_, _, code := runAuth(t, cfg, cs, nil, "", "auth", "login")
-	if code != exitcode.UsageErr {
-		t.Errorf("login without --with-api-key exit = %d, want 2", code)
-	}
-}
-
 func TestAuthLoginRedactsKeyInLog(t *testing.T) {
 	srv := meServer(t)
 	defer srv.Close()

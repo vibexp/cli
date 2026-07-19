@@ -34,18 +34,30 @@ vibexp config current-context
 
 ### Authentication
 
-API keys are the primary, always-available auth method (works on every
-self-hosted deployment). The key is read from a hidden prompt or stdin — never
-as a command-line argument (which would leak into shell history):
+Two methods are supported. **Browser login** (default) is best for interactive
+use; **API keys** are best for CI/scripts and work on every deployment.
 
 ```bash
-# Interactive (hidden prompt) or piped:
+# Interactive OAuth 2.1 browser login (opens your browser):
+vibexp auth login
+
+# API key — read from a hidden prompt or piped, never a CLI argument:
 vibexp auth login --with-api-key
 printf '%s' "$MY_KEY" | vibexp auth login --with-api-key
 
-vibexp auth status     # method + identity + key fingerprint (never the secret)
+vibexp auth status     # method + identity + credential fingerprint (never the secret)
 vibexp auth logout     # remove the active context's stored credential
 ```
+
+`vibexp auth login` performs the OAuth 2.1 authorization-code + PKCE flow
+(RFC 8414 discovery → RFC 7591 dynamic client registration → loopback callback →
+RFC 8707 resource-indicated token exchange) and stores rotating tokens. Access
+tokens are refreshed transparently on expiry; concurrent invocations are
+serialized by a file lock so exactly one refresh happens.
+
+On a **headless/SSH** host (no browser), or a deployment **without an OAuth
+server**, or one whose REST API doesn't accept browser-login tokens, login fails
+fast (exit `4`) and points you at `--with-api-key`.
 
 Credentials are stored per context in `~/.vibexp/credentials.json` (0600),
 separate from config. For CI/scripts, set `VIBEXP_API_KEY` and skip login

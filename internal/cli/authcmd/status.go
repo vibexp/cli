@@ -36,30 +36,32 @@ func newStatus(resolve StoreResolver, getenv config.Getenv) *cobra.Command {
 			out := cmd.OutOrStdout()
 			if resolved.Source == cred.SourceNone {
 				cmd.PrintErrf("Not authenticated for context %q.\n", rt.ContextName)
-				cmd.PrintErrln("Log in with: vibexp auth login --with-api-key")
+				cmd.PrintErrln("Log in with: vibexp auth login  (or --with-api-key)")
 				return nil
 			}
-			logging.RegisterSecret(resolved.Bearer)
 
 			baseURL, err := requireBaseURL(rt)
 			if err != nil {
 				return err
 			}
-			user, err := fetchIdentity(ctx, baseURL, resolved.Bearer, rt.Timeout)
+			// For OAuth this transparently refreshes an expired access token.
+			bearer, err := freshBearer(ctx, store, rt, resolved)
+			if err != nil {
+				return err
+			}
+			logging.RegisterSecret(bearer)
+
+			user, err := fetchIdentity(ctx, baseURL, bearer, rt.Timeout)
 			if err != nil {
 				return err
 			}
 
-			source := "stored credential"
-			if resolved.Source == cred.SourceEnv {
-				source = "environment (" + cred.EnvAPIKey + ")"
-			}
-			fmt.Fprintf(out, "Context:  %s\n", rt.ContextName)
-			fmt.Fprintf(out, "Server:   %s\n", baseURL)
-			fmt.Fprintf(out, "Method:   API key (%s)\n", source)
-			fmt.Fprintf(out, "Key:      %s\n", cred.Fingerprint(resolved.Bearer))
-			fmt.Fprintf(out, "User:     %s <%s>\n", user.Name, string(user.Email))
-			fmt.Fprintf(out, "User ID:  %s\n", user.Id)
+			fmt.Fprintf(out, "Context:    %s\n", rt.ContextName)
+			fmt.Fprintf(out, "Server:     %s\n", baseURL)
+			fmt.Fprintf(out, "Method:     %s\n", methodLabel(resolved))
+			fmt.Fprintf(out, "Credential: %s\n", cred.Fingerprint(bearer))
+			fmt.Fprintf(out, "User:       %s <%s>\n", user.Name, string(user.Email))
+			fmt.Fprintf(out, "User ID:    %s\n", user.Id)
 			return nil
 		},
 	}
