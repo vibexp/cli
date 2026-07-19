@@ -77,7 +77,13 @@ func runPaginate(ctx context.Context, cmd *cobra.Command, client *api.RawClient,
 			break
 		}
 		items = append(items, pageItems...)
+		// Stop on a short/empty page, or once the response's own total_pages
+		// says we're done (guards against an endpoint that always returns a
+		// full page and would otherwise loop forever).
 		if len(pageItems) < limit {
+			break
+		}
+		if total, ok := readTotalPages(raw); ok && page >= total {
 			break
 		}
 	}
@@ -90,6 +96,17 @@ func runPaginate(ctx context.Context, cmd *cobra.Command, client *api.RawClient,
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}
 	return renderBody(cmd, rt, getenv, merged)
+}
+
+// readTotalPages returns the response's total_pages metadata when present.
+func readTotalPages(raw []byte) (int, bool) {
+	var meta struct {
+		TotalPages *int `json:"total_pages"`
+	}
+	if err := json.Unmarshal(raw, &meta); err != nil || meta.TotalPages == nil {
+		return 0, false
+	}
+	return *meta.TotalPages, true
 }
 
 // extractItems returns the list items in a page response: a top-level array, or

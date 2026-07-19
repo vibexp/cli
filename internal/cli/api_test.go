@@ -73,6 +73,14 @@ func apiServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write([]byte(`{"items":[` + strings.Join(items, ",") + `],"page":` + strconv.Itoa(page) + `}`))
 	})
+	// Always returns a full page (never short), but reports total_pages=2 — the
+	// loop must stop via total_pages, not run forever.
+	mux.HandleFunc("/api/v1/capped", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		_, _ = w.Write([]byte(fmt.Sprintf(
+			`{"items":[{"id":"c%da"},{"id":"c%db"}],"page":%d,"total_pages":2}`, page, page, page)))
+	})
 	return httptest.NewServer(mux)
 }
 
@@ -224,6 +232,25 @@ func TestAPIPaginateMergesPages(t *testing.T) {
 	}
 	if items[0]["id"] != "p1" || items[4]["id"] != "p5" {
 		t.Errorf("merged order wrong: %+v", items)
+	}
+}
+
+func TestAPIPaginateStopsAtTotalPages(t *testing.T) {
+	srv := apiServer(t)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "")
+
+	out, _, code := runAuth(t, cfg, cs, nil, "", "api", "GET", "/api/v1/capped?limit=2", "--paginate")
+	if code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	var items []map[string]string
+	if err := json.Unmarshal([]byte(out), &items); err != nil {
+		t.Fatalf("not a JSON array: %v\n%s", err, out)
+	}
+	// 2 pages × 2 items — the loop stops at total_pages instead of looping.
+	if len(items) != 4 {
+		t.Errorf("items = %d, want 4 (stopped at total_pages=2)", len(items))
 	}
 }
 
