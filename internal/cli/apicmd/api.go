@@ -15,11 +15,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/vibexp/cli/internal/api"
+	"github.com/vibexp/cli/internal/cli/resource"
 	"github.com/vibexp/cli/internal/clictx"
 	"github.com/vibexp/cli/internal/config"
 	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
-	"github.com/vibexp/cli/internal/output"
 )
 
 // CredResolver returns the effective credential store.
@@ -111,15 +111,10 @@ func runSingle(ctx context.Context, cmd *cobra.Command, client *api.RawClient, m
 	return renderBody(cmd, rt, getenv, raw)
 }
 
-// renderBody pipes a response body through the output engine to stdout.
+// renderBody pipes a response body through the output engine to stdout (raw
+// passthrough — no column spec).
 func renderBody(cmd *cobra.Command, rt *config.Runtime, getenv config.Getenv, raw []byte) error {
-	opts := output.Options{
-		Format: output.Format(rt.Format),
-		IsTTY:  rt.IsTTY,
-		Color:  output.ColorEnabled(rt.IsTTY, getenv),
-		JQ:     rt.JQ,
-	}
-	return output.Render(cmd.OutOrStdout(), raw, nil, opts)
+	return resource.Render(cmd, rt, getenv, raw, nil)
 }
 
 // substituteTeam replaces a {team} placeholder using the shared resolver.

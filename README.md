@@ -114,6 +114,20 @@ vibexp … --format=yaml --jq '.items[0]'   # jq result as YAML
 `2`. **stdout carries only data** — all status/progress/errors go to stderr, so
 `vibexp … > out.json` is always clean, parseable output.
 
+## Quickstart
+
+```bash
+vibexp config set-context dev --base-url https://your-deployment.example
+vibexp auth login                      # or: vibexp auth login --with-api-key
+vibexp whoami                          # who am I?
+vibexp team list                       # teams I belong to
+vibexp project list --team acme        # projects in a team (or set a default team on the context)
+```
+
+All three honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
+pagination flags `--limit` / `--page` / `--offset`. Adding a new resource
+command is mechanical — see [docs/adding-commands.md](docs/adding-commands.md).
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
