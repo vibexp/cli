@@ -184,6 +184,22 @@ vibexp prompt render greet --var env=prod --format json      # full API envelope
 A missing required variable surfaces the API's validation error with field
 detail (exit 1); on a duplicate `--var` key the last value wins.
 
+### Artifacts
+
+Full CRUD over artifacts — the polished-output store. Artifacts are
+project-scoped (addressed by `(project, slug)`), so every single-item verb
+resolves a project (`--project`, `VIBEXP_PROJECT`, or the active context; missing
+→ exit 2):
+
+```bash
+vibexp artifact list --project my-proj                       # +pagination flags
+vibexp artifact create report --project my-proj \
+  --title "Build report" --body-file report.md               # --body-file <path|->
+vibexp artifact get report --project my-proj
+vibexp artifact update report --project my-proj --body-file report.md
+vibexp artifact delete report --project my-proj              # --yes for scripts
+```
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
