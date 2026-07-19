@@ -78,8 +78,8 @@ func apiServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/api/v1/capped", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-		_, _ = w.Write([]byte(fmt.Sprintf(
-			`{"items":[{"id":"c%da"},{"id":"c%db"}],"page":%d,"total_pages":2}`, page, page, page)))
+		_, _ = fmt.Fprintf(w,
+			`{"items":[{"id":"c%da"},{"id":"c%db"}],"page":%d,"total_pages":2}`, page, page, page)
 	})
 	return httptest.NewServer(mux)
 }
