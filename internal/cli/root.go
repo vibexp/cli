@@ -16,6 +16,7 @@ import (
 	"github.com/vibexp/cli/internal/cli/apicmd"
 	"github.com/vibexp/cli/internal/cli/authcmd"
 	"github.com/vibexp/cli/internal/cli/configcmd"
+	"github.com/vibexp/cli/internal/cli/memorycmd"
 	"github.com/vibexp/cli/internal/cli/projectcmd"
 	"github.com/vibexp/cli/internal/cli/resource"
 	"github.com/vibexp/cli/internal/cli/teamcmd"
@@ -174,6 +175,7 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 	root.AddCommand(usercmd.NewWhoami(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(teamcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(projectcmd.New(resource.CredResolver(credResolver), getenv))
+	root.AddCommand(memorycmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(versioncmd.New())
 
 	return root, st
