@@ -11,9 +11,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/vibexp/cli/internal/cli/authcmd"
 	"github.com/vibexp/cli/internal/cli/configcmd"
 	"github.com/vibexp/cli/internal/cli/versioncmd"
+	"github.com/vibexp/cli/internal/clictx"
 	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
 	"github.com/vibexp/cli/internal/logging"
 )
@@ -35,6 +38,9 @@ type globalFlags struct {
 type Options struct {
 	// Store overrides the config store (defaults to ~/.vibexp/config.yaml).
 	Store *config.Store
+	// CredStore overrides the credential store (defaults to
+	// ~/.vibexp/credentials.json).
+	CredStore *cred.Store
 	// Getenv overrides environment lookups (defaults to os.Getenv).
 	Getenv config.Getenv
 	// LogDir overrides the log directory (defaults to ~/.vibexp/logs).
@@ -97,8 +103,8 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 				Timeout: gf.timeout,
 			}, getenv)
 
-			ctx := withLogger(cmd.Context(), logger)
-			ctx = withRuntime(ctx, &rt)
+			ctx := clictx.WithLogger(cmd.Context(), logger)
+			ctx = clictx.WithRuntime(ctx, &rt)
 			cmd.SetContext(ctx)
 
 			// Always-on: one info line per invocation so the log is populated
@@ -136,8 +142,16 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 		}
 		return config.DefaultStore()
 	}
+	// credResolver hands auth subcommands the effective credential store.
+	credResolver := func() (*cred.Store, error) {
+		if opts.CredStore != nil {
+			return opts.CredStore, nil
+		}
+		return cred.DefaultStore()
+	}
 
 	root.AddCommand(configcmd.New(storeResolver, getenv))
+	root.AddCommand(authcmd.New(credResolver, getenv))
 	root.AddCommand(versioncmd.New())
 
 	return root, st
