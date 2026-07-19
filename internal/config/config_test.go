@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -35,13 +36,15 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("Save: %v", err)
 	}
 
-	// File perms must be 0600.
-	info, err := os.Stat(s.Path)
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("config perms = %o, want 600", perm)
+	// File perms must be 0600 (unix only — Windows ACLs don't map to mode bits).
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(s.Path)
+		if err != nil {
+			t.Fatalf("stat: %v", err)
+		}
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Errorf("config perms = %o, want 600", perm)
+		}
 	}
 
 	out, err := s.Load()
