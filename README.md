@@ -200,6 +200,35 @@ vibexp artifact update report --project my-proj --body-file report.md
 vibexp artifact delete report --project my-proj              # --yes for scripts
 ```
 
+### Feeds
+
+Read and post to team feeds — the CLI equivalent of the MCP `post_to_feed` /
+`reply_to_feed_item` tools, so CI pipelines and agents can post status:
+
+```bash
+vibexp feed list                                             # feeds in the team
+vibexp feed items --feed <feed-id>                           # +pagination flags
+vibexp feed get-item <item-id>                               # item + its replies
+vibexp feed post "deploy #1234 succeeded" --feed <feed-id> --title "Deploy"
+echo "see logs" | vibexp feed post --feed <feed-id> --title "Deploy" --body-file -
+vibexp feed reply <item-id> "thanks!"                        # or --body-file <path|->
+```
+
+Message content comes from a positional argument or `--body-file` (a path, or
+`-` for stdin) — supply one, not both. `--author` (default `vibexp-cli`) sets the
+AI-assistant name recorded on the item/reply. `get-item` lists replies in
+table/text output; `--format=json` prints the raw item.
+
+### Search
+
+Semantic search across the team's prompts, artifacts, blueprints, and memories:
+
+```bash
+vibexp search "retry backoff"                                # all types
+vibexp search "retry backoff" --type prompts --type memories # narrow by type
+vibexp search "auth" --project my-proj --format json         # scope + raw envelope
+```
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
