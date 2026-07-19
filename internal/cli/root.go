@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/vibexp/cli/internal/api"
+	"github.com/vibexp/cli/internal/cli/apicmd"
 	"github.com/vibexp/cli/internal/cli/authcmd"
 	"github.com/vibexp/cli/internal/cli/configcmd"
 	"github.com/vibexp/cli/internal/cli/versioncmd"
@@ -165,6 +166,7 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 
 	root.AddCommand(configcmd.New(storeResolver, getenv))
 	root.AddCommand(authcmd.New(credResolver, getenv))
+	root.AddCommand(apicmd.New(credResolver, getenv))
 	root.AddCommand(versioncmd.New())
 
 	return root, st

@@ -114,6 +114,28 @@ vibexp … --format=yaml --jq '.items[0]'   # jq result as YAML
 `2`. **stdout carries only data** — all status/progress/errors go to stderr, so
 `vibexp … > out.json` is always clean, parseable output.
 
+## Escape hatch: `vibexp api`
+
+Reach any of the API's endpoints directly (like `gh api`), with the active
+context's base URL, auth, retries, and the output engine applied:
+
+```bash
+vibexp api GET /api/v1/{team}/memories            # {team} resolves like curated commands
+vibexp api GET '/api/v1/{team}/memories?limit=20' --jq '.items[].id'
+vibexp api POST /api/v1/{team}/memories --input body.json
+echo '{"text":"hi"}' | vibexp api POST /api/v1/{team}/memories --input -
+vibexp api DELETE /api/v1/{team}/memories/123
+vibexp api GET /api/v1/{team}/memories --paginate  # merge every page into one JSON array
+```
+
+- `--input <file>` or `--input -` (stdin) sends a body (`Content-Type:
+  application/json` by default). `--header 'Key: Value'` (repeatable) overrides.
+- Paths are server-relative; `{team}` substitutes the resolved team (flag > env >
+  context). `--paginate` (GET only) walks `page`/`limit` until a short page and
+  emits the union of items.
+- Exit codes and RFC 7807 errors (with `request_id`) are identical to curated
+  commands.
+
 ## Exit codes
 
 | Code | Meaning |
