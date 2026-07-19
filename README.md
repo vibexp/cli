@@ -128,6 +128,21 @@ All three honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
 pagination flags `--limit` / `--page` / `--offset`. Adding a new resource
 command is mechanical — see [docs/adding-commands.md](docs/adding-commands.md).
 
+### Memories
+
+Full CRUD over memories (team-scoped; content via `--body-file`):
+
+```bash
+vibexp memory list --project my-proj              # filter by project; +pagination flags
+echo "a useful note" | vibexp memory create --project my-proj --body-file -
+vibexp memory get <id>
+vibexp memory update <id> --status archived       # or --body-file to replace content
+vibexp memory delete <id>                         # prompts on a TTY; --yes for scripts
+```
+
+`delete` refuses to run non-interactively without `--yes` (exit 2). Every verb
+honors `--format`/`--jq`.
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active

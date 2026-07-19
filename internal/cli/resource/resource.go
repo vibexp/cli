@@ -7,6 +7,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -41,21 +42,43 @@ func Client(ctx context.Context, rt *config.Runtime, resolve CredResolver, geten
 	return api.NewRaw(ctx, rt, store, getenv)
 }
 
-// FetchJSON performs a request and returns the raw response body, mapping any
-// non-2xx into an *api.Error (RFC 7807 detail + request_id + exit code).
+// RuntimeAndClient resolves the runtime and an authenticated client in one
+// step — the common preamble for every command RunE.
+func RuntimeAndClient(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv) (context.Context, *config.Runtime, *api.RawClient, error) {
+	ctx := cmd.Context()
+	rt, err := Runtime(ctx)
+	if err != nil {
+		return ctx, nil, nil, err
+	}
+	client, err := Client(ctx, rt, resolve, getenv)
+	if err != nil {
+		return ctx, rt, nil, err
+	}
+	return ctx, rt, client, nil
+}
+
+// Do performs a request and returns the raw response body and status, mapping
+// any non-2xx into an *api.Error (RFC 7807 detail + request_id + exit code).
+// body may be nil.
+func Do(ctx context.Context, client *api.RawClient, method, path string, body []byte) ([]byte, int, error) {
+	resp, err := client.Do(ctx, method, path, body, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw, err := api.ReadBody(resp)
+	if err != nil {
+		return nil, resp.StatusCode, exitcode.New(exitcode.RuntimeErr, err)
+	}
+	if cerr := api.Check(resp.StatusCode, raw); cerr != nil {
+		return nil, resp.StatusCode, cerr
+	}
+	return raw, resp.StatusCode, nil
+}
+
+// FetchJSON is a GET-and-return-body convenience over Do.
 func FetchJSON(ctx context.Context, client *api.RawClient, method, path string) ([]byte, error) {
-	resp, err := client.Do(ctx, method, path, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	body, err := api.ReadBody(resp)
-	if err != nil {
-		return nil, exitcode.New(exitcode.RuntimeErr, err)
-	}
-	if cerr := api.Check(resp.StatusCode, body); cerr != nil {
-		return nil, cerr
-	}
-	return body, nil
+	body, _, err := Do(ctx, client, method, path, nil)
+	return body, err
 }
 
 // Render writes a raw response body to stdout through the output engine, using
@@ -69,6 +92,20 @@ func Render(cmd *cobra.Command, rt *config.Runtime, getenv config.Getenv, body [
 		JQ:     rt.JQ,
 	}
 	return output.Render(cmd.OutOrStdout(), body, spec, opts)
+}
+
+// SendItem marshals a JSON payload, sends it, and renders the response with a
+// spec. It is the shared write path for create/update verbs.
+func SendItem(ctx context.Context, cmd *cobra.Command, rt *config.Runtime, getenv config.Getenv, client *api.RawClient, method, path string, payload any, spec *output.TableSpec) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return exitcode.New(exitcode.RuntimeErr, err)
+	}
+	raw, _, err := Do(ctx, client, method, path, body)
+	if err != nil {
+		return err
+	}
+	return Render(cmd, rt, getenv, raw, spec)
 }
 
 // GetItem is the one-line helper a single-object command (e.g. whoami) uses:
