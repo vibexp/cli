@@ -32,6 +32,33 @@ vibexp config get-contexts
 vibexp config current-context
 ```
 
+### Authentication
+
+API keys are the primary, always-available auth method (works on every
+self-hosted deployment). The key is read from a hidden prompt or stdin — never
+as a command-line argument (which would leak into shell history):
+
+```bash
+# Interactive (hidden prompt) or piped:
+vibexp auth login --with-api-key
+printf '%s' "$MY_KEY" | vibexp auth login --with-api-key
+
+vibexp auth status     # method + identity + key fingerprint (never the secret)
+vibexp auth logout     # remove the active context's stored credential
+```
+
+Credentials are stored per context in `~/.vibexp/credentials.json` (0600),
+separate from config. For CI/scripts, set `VIBEXP_API_KEY` and skip login
+entirely — it takes **precedence over stored credentials**:
+
+```bash
+export VIBEXP_API_KEY="…"   # env > stored
+vibexp auth status
+```
+
+An invalid or expired key exits `4` with the server's error detail (and request
+id). The full secret never appears in `auth status`, logs, or error messages.
+
 ### Global flags
 
 | Flag | Env | Purpose |
