@@ -8,6 +8,7 @@ const (
 	EnvBaseURL = "VIBEXP_BASE_URL"
 	EnvTeam    = "VIBEXP_TEAM"
 	EnvProject = "VIBEXP_PROJECT"
+	EnvFormat  = "VIBEXP_FORMAT"
 )
 
 // Overrides carries values sourced from command-line flags. Empty strings mean
@@ -17,6 +18,7 @@ type Overrides struct {
 	BaseURL string
 	Team    string
 	Project string
+	Format  string
 	Timeout time.Duration
 }
 
@@ -28,6 +30,11 @@ type Runtime struct {
 	Team        string
 	Project     string
 	Timeout     time.Duration
+	// Format is the resolved output format (flag > env; empty = auto). JQ and
+	// IsTTY are populated by the CLI layer (flag-only / terminal detection).
+	Format string
+	JQ     string
+	IsTTY  bool
 }
 
 // Getenv is the signature of an environment lookup (os.Getenv), injectable for
@@ -64,6 +71,7 @@ func (f *File) Resolve(o Overrides, env Getenv) Runtime {
 		BaseURL:     firstNonEmpty(o.BaseURL, env(EnvBaseURL), active.BaseURL),
 		Team:        firstNonEmpty(o.Team, env(EnvTeam), active.DefaultTeam),
 		Project:     firstNonEmpty(o.Project, env(EnvProject), active.DefaultProject),
+		Format:      firstNonEmpty(o.Format, env(EnvFormat)),
 		Timeout:     o.Timeout,
 	}
 }
