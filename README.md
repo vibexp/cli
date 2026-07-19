@@ -85,6 +85,35 @@ id). The full secret never appears in `auth status`, logs, or error messages.
 Base URL can also be overridden with `VIBEXP_BASE_URL`. Resolution precedence
 everywhere is **flag > env > active context**.
 
+## Output & scripting
+
+Output is **TTY-aware**: a terminal gets an aligned, colored table; a pipe gets
+tab-separated values (no color, no header) — so `vibexp … | cut -f1` just works.
+
+| `--format` | On a terminal | Piped |
+| --- | --- | --- |
+| *(default)* | aligned color table | TSV |
+| `table` | aligned color table | aligned table (no color) |
+| `text` | TSV | TSV |
+| `json` | **raw API response body, byte-for-byte** | same |
+| `yaml` | faithful YAML of the JSON body | same |
+
+`--format` (or `VIBEXP_FORMAT`) always overrides TTY detection. `NO_COLOR=1`
+(or `TERM=dumb`) strips all color.
+
+**`--jq <expr>`** filters output with a built-in [gojq](https://github.com/itchyny/gojq)
+engine (no external `jq` needed):
+
+```bash
+vibexp … --jq '.items[].id'          # newline-delimited JSON values
+vibexp … --jq '.items | length'
+vibexp … --format=yaml --jq '.items[0]'   # jq result as YAML
+```
+
+`--jq` forces JSON output (or YAML with `--format=yaml`); a bad expression exits
+`2`. **stdout carries only data** — all status/progress/errors go to stderr, so
+`vibexp … > out.json` is always clean, parseable output.
+
 ## Exit codes
 
 | Code | Meaning |

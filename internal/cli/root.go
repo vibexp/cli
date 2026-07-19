@@ -21,6 +21,7 @@ import (
 	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
 	"github.com/vibexp/cli/internal/logging"
+	"github.com/vibexp/cli/internal/output"
 )
 
 // defaultTimeout is the fallback request timeout when --timeout is unset.
@@ -32,6 +33,7 @@ type globalFlags struct {
 	team    string
 	project string
 	format  string
+	jq      string
 	debug   bool
 	timeout time.Duration
 }
@@ -102,8 +104,16 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 				Context: gf.context,
 				Team:    gf.team,
 				Project: gf.project,
+				Format:  gf.format,
 				Timeout: gf.timeout,
 			}, getenv)
+
+			// Validate the resolved format and populate output-only fields.
+			if _, err := output.ParseFormat(rt.Format); err != nil {
+				return err
+			}
+			rt.JQ = gf.jq
+			rt.IsTTY = output.IsTerminal(os.Stdout)
 
 			ctx := clictx.WithLogger(cmd.Context(), logger)
 			ctx = clictx.WithRuntime(ctx, &rt)
@@ -132,7 +142,8 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 	pf.StringVar(&gf.context, "context", "", "config context to use (overrides active context)")
 	pf.StringVar(&gf.team, "team", "", "team id or slug (overrides context default)")
 	pf.StringVar(&gf.project, "project", "", "project id or slug (overrides context default)")
-	pf.StringVar(&gf.format, "format", "", "output format: json|yaml|table|text")
+	pf.StringVar(&gf.format, "format", "", "output format: json|yaml|table|text (default: table on a terminal, TSV when piped)")
+	pf.StringVar(&gf.jq, "jq", "", "filter JSON output with a gojq expression")
 	pf.BoolVar(&gf.debug, "debug", false, "mirror debug logs to stderr")
 	pf.DurationVar(&gf.timeout, "timeout", defaultTimeout, "per-request timeout")
 

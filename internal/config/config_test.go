@@ -106,6 +106,28 @@ func TestResolvePrecedence(t *testing.T) {
 	}
 }
 
+func TestResolveFormatPrecedence(t *testing.T) {
+	f := &File{}
+	env := func(k string) string {
+		if k == EnvFormat {
+			return "yaml"
+		}
+		return ""
+	}
+	// flag wins over env.
+	if rt := f.Resolve(Overrides{Format: "json"}, env); rt.Format != "json" {
+		t.Errorf("Format = %q, want json (flag wins)", rt.Format)
+	}
+	// env used when no flag.
+	if rt := f.Resolve(Overrides{}, env); rt.Format != "yaml" {
+		t.Errorf("Format = %q, want yaml (env)", rt.Format)
+	}
+	// empty when neither set (auto).
+	if rt := f.Resolve(Overrides{}, func(string) string { return "" }); rt.Format != "" {
+		t.Errorf("Format = %q, want empty (auto)", rt.Format)
+	}
+}
+
 func TestResolveContextSelectionPrecedence(t *testing.T) {
 	f := &File{
 		CurrentContext: "default",

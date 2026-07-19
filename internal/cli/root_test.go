@@ -95,6 +95,21 @@ func TestContextLifecycle(t *testing.T) {
 	}
 }
 
+func TestInvalidFormatIsUsageError(t *testing.T) {
+	_, _, code := run(t, tempStore(t), nil, "--format", "xml", "version")
+	if code != exitcode.UsageErr {
+		t.Fatalf("invalid --format exit = %d, want 2", code)
+	}
+}
+
+func TestValidFormatAccepted(t *testing.T) {
+	for _, f := range []string{"json", "yaml", "table", "text"} {
+		if _, _, code := run(t, tempStore(t), nil, "--format", f, "version"); code != exitcode.OK {
+			t.Errorf("--format %s exit = %d, want 0", f, code)
+		}
+	}
+}
+
 func TestContextEnvOverride(t *testing.T) {
 	store := tempStore(t)
 	if _, _, code := run(t, store, nil, "config", "set-context", "dev", "--base-url", "https://dev"); code != 0 {
