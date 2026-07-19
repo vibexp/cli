@@ -6,8 +6,9 @@
 package api
 
 import (
+	crand "crypto/rand"
 	"io"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"strconv"
 	"time"
@@ -63,35 +64,48 @@ func (d *Doer) Do(req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	var err error
 	for attempt := 1; attempt <= d.maxAttempts; attempt++ {
-		// Rewind the body for retried requests.
-		if attempt > 1 && req.GetBody != nil {
-			body, gErr := req.GetBody()
-			if gErr != nil {
-				return nil, gErr
-			}
-			req.Body = body
+		if rErr := rewindBody(req, attempt); rErr != nil {
+			return nil, rErr
 		}
-
 		resp, err = d.base.Do(req)
 
-		// Non-retryable method, or a definitive outcome: return immediately.
-		if !retryable {
+		if !retryable || attempt == d.maxAttempts || !shouldRetry(resp, err) {
 			return resp, err
 		}
-		if err == nil && !isRetryableStatus(resp.StatusCode) {
-			return resp, nil
-		}
-		if attempt == d.maxAttempts {
-			return resp, err
-		}
-
-		wait := d.backoff(attempt, resp)
-		if resp != nil {
-			drain(resp)
-		}
-		d.sleep(wait)
+		d.waitBeforeRetry(attempt, resp)
 	}
 	return resp, err
+}
+
+// rewindBody resets a retried request's body from GetBody.
+func rewindBody(req *http.Request, attempt int) error {
+	if attempt == 1 || req.GetBody == nil {
+		return nil
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return err
+	}
+	req.Body = body
+	return nil
+}
+
+// shouldRetry reports whether a transport error or a transient status warrants
+// another attempt.
+func shouldRetry(resp *http.Response, err error) bool {
+	if err != nil {
+		return true
+	}
+	return isRetryableStatus(resp.StatusCode)
+}
+
+// waitBeforeRetry drains the response and sleeps for the computed backoff.
+func (d *Doer) waitBeforeRetry(attempt int, resp *http.Response) {
+	wait := d.backoff(attempt, resp)
+	if resp != nil {
+		drain(resp)
+	}
+	d.sleep(wait)
 }
 
 // backoff computes the wait before the next attempt, honoring Retry-After when
@@ -137,12 +151,18 @@ func retryAfter(resp *http.Response) time.Duration {
 	return 0
 }
 
-// defaultJitter returns a random duration in [0, d/2).
+// defaultJitter returns a random duration in [0, d/2). It uses crypto/rand —
+// jitter needs no cryptographic strength, but this avoids flagging a weak PRNG
+// and the volume is negligible (only on retries).
 func defaultJitter(d time.Duration) time.Duration {
 	if d <= 0 {
 		return 0
 	}
-	return time.Duration(rand.Int63n(int64(d/2 + 1)))
+	n, err := crand.Int(crand.Reader, big.NewInt(int64(d/2)+1))
+	if err != nil {
+		return 0
+	}
+	return time.Duration(n.Int64())
 }
 
 // drain reads and closes a response body so the connection can be reused.
