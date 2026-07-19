@@ -27,6 +27,32 @@ Later issues add: `internal/cred/`, `internal/oauth/`, `internal/api/`,
 `internal/output/`, `internal/update/`, and more command packages under
 `internal/cli/`.
 
+## Client layer (`internal/api`)
+
+Every command talks to the API through this layer — never the generated client
+directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
+`*vibexp.ClientWithResponses` composed of:
+
+- **Transport (`doer.go`)** — a `Doer` implementing the generated
+  `HttpRequestDoer`: a per-request timeout (`--timeout`, default 30s), a
+  `User-Agent: vibexp-cli/<version>`, and bounded exponential-backoff+jitter
+  retries (3 attempts, cap 5s, `Retry-After` honored) on **429/5xx/transport
+  errors for safe methods only** (GET/HEAD). POST/PUT/PATCH/DELETE never retry.
+- **Auth editor (`factory.go`)** — a `RequestEditorFn` that sets
+  `Authorization: Bearer …` from the credential store (env `VIBEXP_API_KEY`,
+  stored API key, or a transparently-refreshed OAuth token). Every credential is
+  registered with the log redactor.
+- **Error mapper (`errors.go`)** — `api.Check(status, body)` turns any non-2xx
+  into a single `*api.Error` carrying the RFC 7807 `detail`, `validation_errors`,
+  and `request_id`. It satisfies `exitcode.ExitCoder` (401/403 → 4, else 1), and
+  the root logs the `request_id` to the file log on failure.
+- **Resolution (`resolve.go`)** — `api.Team(rt)` / `api.Project(rt)` return the
+  already-precedence-resolved id/slug (flag > env > context), or a usage error
+  (exit 2) naming all three ways to set it.
+
+`GET /health` (`health.go`) is the unauthenticated server version handle;
+`vibexp version` appends the server release sha when a context resolves.
+
 ## Global flags & precedence
 
 Root owns the persistent flags `--context`, `--team`, `--project`, `--format`,
