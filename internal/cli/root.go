@@ -5,12 +5,14 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/vibexp/cli/internal/api"
 	"github.com/vibexp/cli/internal/cli/authcmd"
 	"github.com/vibexp/cli/internal/cli/configcmd"
 	"github.com/vibexp/cli/internal/cli/versioncmd"
@@ -166,6 +168,9 @@ func Execute(ctx context.Context, args []string) int {
 	err := root.ExecuteContext(ctx)
 
 	if st.logger != nil {
+		if err != nil {
+			logFailure(st.logger, err)
+		}
 		_ = st.logger.Close()
 	}
 
@@ -173,4 +178,19 @@ func Execute(ctx context.Context, args []string) int {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 	}
 	return exitcode.FromError(err)
+}
+
+// logFailure records a command failure to the file log, surfacing the API
+// request id when the error carries one (RFC 7807).
+func logFailure(logger *logging.Logger, err error) {
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) {
+		logger.Error("command failed",
+			"error", err.Error(),
+			"status", apiErr.Status,
+			"request_id", apiErr.RequestID,
+		)
+		return
+	}
+	logger.Error("command failed", "error", err.Error())
 }

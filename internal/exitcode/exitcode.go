@@ -33,6 +33,15 @@ func (e *CodedError) Error() string {
 // Unwrap exposes the wrapped error to errors.Is / errors.As.
 func (e *CodedError) Unwrap() error { return e.Err }
 
+// ExitCode reports the process exit code, satisfying ExitCoder.
+func (e *CodedError) ExitCode() int { return e.Code }
+
+// ExitCoder is any error that knows its intended process exit code. Both
+// *CodedError and the API error layer implement it.
+type ExitCoder interface {
+	ExitCode() int
+}
+
 // New wraps err with the given exit code.
 func New(code int, err error) *CodedError {
 	return &CodedError{Code: code, Err: err}
@@ -61,9 +70,9 @@ func FromError(err error) int {
 	if err == nil {
 		return OK
 	}
-	var coded *CodedError
-	if errors.As(err, &coded) {
-		return coded.Code
+	var coder ExitCoder
+	if errors.As(err, &coder) {
+		return coder.ExitCode()
 	}
 	return RuntimeErr
 }
