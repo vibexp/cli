@@ -73,6 +73,9 @@ func newUpload(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				"owner_id":   ownerID,
 				"owner_type": ownerType,
 			})
+			// Close unblocks the encoder goroutine if the request errors before
+			// the body is fully read (e.g. auth failure or an early 413).
+			defer func() { _ = reader.Close() }()
 			resp, err := client.DoStream(ctx, http.MethodPost, base, reqContentType, reader)
 			if err != nil {
 				return exitcode.New(exitcode.RuntimeErr, err)

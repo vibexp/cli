@@ -76,6 +76,28 @@ type errReader struct{}
 
 func (errReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
 
+// TestStreamCloseUnblocksGoroutine: closing the body when the request aborts
+// before the file is fully read must release the still-writing goroutine (no
+// leak). Without Close, the goroutine would block forever on the pipe.
+func TestStreamCloseUnblocksGoroutine(t *testing.T) {
+	// A large source guarantees the goroutine is still writing when we close.
+	src := io.LimitReader(zeroReader{}, 64<<20)
+	reader, _ := Stream("file", "big.bin", "application/octet-stream", src, map[string]string{"owner_id": "o-1"})
+
+	// Consume a little, then abandon the read and close.
+	buf := make([]byte, 1024)
+	if _, err := reader.Read(buf); err != nil {
+		t.Fatalf("initial read: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	// A subsequent read observes the closed pipe rather than hanging.
+	if _, err := reader.Read(buf); err == nil {
+		t.Error("read after close should error")
+	}
+}
+
 // TestStreamBoundedMemory streams a large synthetic file and asserts heap growth
 // stays far below the payload size — proving the body is not buffered.
 func TestStreamBoundedMemory(t *testing.T) {
