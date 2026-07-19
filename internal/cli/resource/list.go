@@ -9,6 +9,22 @@ import (
 	"github.com/vibexp/cli/internal/output"
 )
 
+// NewListCommand builds a ready `list` subcommand from a ListConfig: it binds
+// the pagination flags and wires RunE to RunList, so a noun package only
+// supplies its path and columns.
+func NewListCommand(resolve CredResolver, getenv config.Getenv, short string, cfg ListConfig) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: short,
+		Args:  cobra.NoArgs,
+	}
+	page := AddPaginationFlags(cmd)
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		return RunList(cmd, resolve, getenv, cfg, page)
+	}
+	return cmd
+}
+
 // ListConfig declares a list endpoint: how to build its path (resolving team
 // scope when needed) and how to tabulate it.
 type ListConfig struct {
