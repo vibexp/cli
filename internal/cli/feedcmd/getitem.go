@@ -48,9 +48,12 @@ func newGetItem(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comm
 			if !humanFormat(rt) {
 				return nil
 			}
+			// The item is the primary result and is already shown — a failure
+			// fetching its replies is a non-fatal warning, not a command failure.
 			replies, _, err := resource.Do(ctx, client, http.MethodGet, itemURL+"/replies", nil)
 			if err != nil {
-				return err
+				cmd.PrintErrln("\nWarning: could not load replies:", err)
+				return nil
 			}
 			cmd.PrintErrln("\nReplies:")
 			return resource.Render(cmd, rt, getenv, replies,

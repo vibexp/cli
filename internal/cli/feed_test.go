@@ -42,6 +42,16 @@ func feedServer(t *testing.T, cap *feedCapture) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"i-1","ai_assistant_name":"bot","excerpt":"hello there","content":"hello there","reply_count":1,"posted_at":"2026-02-01T00:00:00Z","title":"Note"}`))
 	})
+	// i-2 exists but its replies endpoint fails — get-item must still succeed.
+	mux.HandleFunc(base+"/feed-items/i-2", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"i-2","ai_assistant_name":"bot","excerpt":"solo","content":"solo","reply_count":0,"posted_at":"2026-02-01T00:00:00Z","title":"Solo"}`))
+	})
+	mux.HandleFunc(base+"/feed-items/i-2/replies", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"title":"Server Error","status":500,"detail":"boom","request_id":"req-500"}`))
+	})
 	mux.HandleFunc(base+"/feed-items/i-1/replies", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
@@ -131,6 +141,26 @@ func TestFeedGetItemJSONOmitsReplies(t *testing.T) {
 	}
 	if !strings.Contains(out, `"id":"i-1"`) || strings.Contains(out, "nice work") {
 		t.Errorf("json get-item should be the raw item only: %q", out)
+	}
+}
+
+// TestFeedGetItemRepliesFailureNonFatal: the item is the primary result, so a
+// failed replies fetch warns but does not fail the command.
+func TestFeedGetItemRepliesFailureNonFatal(t *testing.T) {
+	var cap feedCapture
+	srv := feedServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	out, errOut, code := runAuth(t, cfg, cs, nil, "", "feed", "get-item", "i-2")
+	if code != 0 {
+		t.Fatalf("get-item with failing replies exit = %d, want 0", code)
+	}
+	if !strings.Contains(out, "i-2") {
+		t.Errorf("item should still be shown: %q", out)
+	}
+	if !strings.Contains(errOut, "could not load replies") {
+		t.Errorf("should warn about replies failure: %q", errOut)
 	}
 }
 
