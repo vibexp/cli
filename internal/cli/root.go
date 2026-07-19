@@ -18,10 +18,12 @@ import (
 	"github.com/vibexp/cli/internal/cli/authcmd"
 	"github.com/vibexp/cli/internal/cli/blueprintcmd"
 	"github.com/vibexp/cli/internal/cli/configcmd"
+	"github.com/vibexp/cli/internal/cli/feedcmd"
 	"github.com/vibexp/cli/internal/cli/memorycmd"
 	"github.com/vibexp/cli/internal/cli/projectcmd"
 	"github.com/vibexp/cli/internal/cli/promptcmd"
 	"github.com/vibexp/cli/internal/cli/resource"
+	"github.com/vibexp/cli/internal/cli/searchcmd"
 	"github.com/vibexp/cli/internal/cli/teamcmd"
 	"github.com/vibexp/cli/internal/cli/usercmd"
 	"github.com/vibexp/cli/internal/cli/versioncmd"
@@ -182,6 +184,8 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 	root.AddCommand(blueprintcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(promptcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(artifactcmd.New(resource.CredResolver(credResolver), getenv))
+	root.AddCommand(feedcmd.New(resource.CredResolver(credResolver), getenv))
+	root.AddCommand(searchcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(versioncmd.New())
 
 	return root, st
