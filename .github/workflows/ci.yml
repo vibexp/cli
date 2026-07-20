@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      platform_image_tag:
+        description: "VibeXP platform image tag for the e2e job (default: latest release)"
+        required: false
 
 permissions:
   contents: read
@@ -56,3 +61,56 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: go build ./cmd/vibexp
+
+  # E2E against an ephemeral VibeXP deployment booted inside the job from the
+  # latest *published* platform release (what self-hosters actually run). Fully
+  # self-contained — no repository secrets — so it runs on fork PRs too. The
+  # throwaway key is generated per job, masked, and dies with the stack.
+  e2e:
+    name: E2E (ephemeral stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Resolve platform release
+        id: platform
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.platform_image_tag }}
+        # Pin the latest published release tag rather than :latest (which
+        # manual dispatch builds also move). workflow_dispatch can override.
+        run: |
+          tag="${INPUT_TAG:-$(gh api repos/vibexp/vibexp/releases/latest --jq .tag_name)}"
+          echo "tag=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Using platform image tag: ${tag#v}"
+
+      - name: Boot ephemeral VibeXP stack
+        env:
+          VIBEXP_E2E_IMAGE: ghcr.io/vibexp/vibexp:${{ steps.platform.outputs.tag }}
+        run: |
+          docker compose -f e2e/docker-compose.yml up -d --wait
+          curl -fsS http://localhost:8080/health
+
+      - name: Bootstrap throwaway API key
+        run: |
+          key=$(bash e2e/bootstrap.sh http://localhost:8080)
+          echo "::add-mask::$key"
+          {
+            echo "VIBEXP_CLI_TEST_URL=http://localhost:8080"
+            echo "VIBEXP_CLI_TEST_API_KEY=$key"
+          } >> "$GITHUB_ENV"
+
+      - name: Run e2e suite
+        run: make e2e
+
+      - name: App logs (on failure)
+        if: failure()
+        run: docker compose -f e2e/docker-compose.yml logs --tail 200 app
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f e2e/docker-compose.yml down -v

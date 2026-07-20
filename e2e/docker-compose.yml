@@ -1,0 +1,72 @@
+# Ephemeral VibeXP stack for the CLI e2e suite.
+#
+#   VIBEXP_E2E_IMAGE=ghcr.io/vibexp/vibexp:<tag> docker compose -f e2e/docker-compose.yml up -d --wait
+#   key=$(bash e2e/bootstrap.sh)   # dev login → throwaway API key
+#   VIBEXP_CLI_TEST_URL=http://localhost:8080 VIBEXP_CLI_TEST_API_KEY=$key make e2e
+#   docker compose -f e2e/docker-compose.yml down -v
+#
+# Runs the *published* platform release (CI pins the latest release tag; the
+# default is :latest for local convenience) against a throwaway Postgres. The
+# app migrates its own schema at startup. FRONTEND_BASE_URL on localhost keeps
+# the instance in local-development mode, which enables /api/v1/auth/dev/login —
+# that is what bootstrap.sh uses to mint the API key without a browser.
+#
+# Everything here is throwaway/test-only: fixed keys, wide-open rate limits,
+# no volumes. NEVER reuse this file or its values for a real deployment.
+
+name: vibexp-cli-e2e
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: vibexp
+      POSTGRES_USER: vibexp
+      POSTGRES_PASSWORD: cli-e2e-postgres-password
+    networks: [vibexp-cli-e2e]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -d vibexp -U vibexp']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: ${VIBEXP_E2E_IMAGE:-ghcr.io/vibexp/vibexp:latest}
+    ports:
+      - '8080:8080'
+    environment:
+      PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: vibexp
+      DB_PASSWORD: cli-e2e-postgres-password
+      DB_NAME: vibexp
+
+      # Throwaway test keys (32-byte ENCRYPTION_KEY, 64-hex session key).
+      ENCRYPTION_KEY: 'e2eencryptionkeye2eencryptionkey'
+      SESSION_ENCRYPTION_KEY: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+
+      # localhost origin → local-development mode → dev login enabled, which
+      # bootstrap.sh relies on to mint the throwaway API key.
+      FRONTEND_BASE_URL: 'http://localhost:8080'
+      DEV_LOGIN_ENABLED: 'true'
+      LOG_LEVEL: warn
+
+      # The whole suite talks from a single IP; keep the per-IP limiters far
+      # above what one runner can hit. Test-only values.
+      AUTH_RATE_LIMIT_PER_MINUTE: '100000'
+      API_RATE_LIMIT_PER_MINUTE: '100000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [vibexp-cli-e2e]
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8080/ping']
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+networks:
+  vibexp-cli-e2e:
+    driver: bridge
