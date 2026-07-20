@@ -1,0 +1,160 @@
+# goreleaser configuration for the vibexp CLI.
+# Docs: https://goreleaser.com
+#
+# Two build sets exist on purpose:
+#   * "vibexp"      — the canonical GitHub Release archives. Built with
+#                     InstallSource=binary, so `vibexp update` self-replaces them
+#                     and the #15 self-updater matches them by name
+#                     (vibexp_<version>_<os>_<arch>.<ext>).
+#   * "vibexp-brew" — identical binaries built with InstallSource=brew, so a
+#                     Homebrew install reports `source: brew` and is upgraded via
+#                     `brew upgrade`. A single build cannot vary ldflags per
+#                     distribution, hence the second build. Its archives use a
+#                     distinct name (vibexp_homebrew_<version>_<os>-<arch>) whose
+#                     "_<os>-" segment the self-updater's "_<os>_" matcher never
+#                     selects — see internal/update/contract_test.go.
+version: 2
+
+project_name: vibexp
+
+before:
+  hooks:
+    # Ensure the module graph is present, then generate completions + man pages
+    # into ./completions and ./manpages for bundling below. The version is passed
+    # explicitly since `go run` builds carry no -ldflags.
+    - go mod download
+    - go run ./cmd/docgen . {{ .Version }}
+
+builds:
+  - id: vibexp
+    main: ./cmd/vibexp
+    binary: vibexp
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/vibexp/cli/internal/version.Version={{ .Version }}
+      - -X github.com/vibexp/cli/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/vibexp/cli/internal/version.Date={{ .CommitDate }}
+      - -X github.com/vibexp/cli/internal/version.InstallSource=binary
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # Homebrew casks are macOS-only, so this build targets darwin alone.
+  - id: vibexp-brew
+    main: ./cmd/vibexp
+    binary: vibexp
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/vibexp/cli/internal/version.Version={{ .Version }}
+      - -X github.com/vibexp/cli/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/vibexp/cli/internal/version.Date={{ .CommitDate }}
+      - -X github.com/vibexp/cli/internal/version.InstallSource=brew
+    goos: [darwin]
+    goarch: [amd64, arm64]
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  # Canonical release archives — this is the #15 asset-name contract:
+  # vibexp_<version>_<os>_<arch>.tar.gz (unix) / .zip (windows).
+  - id: default
+    ids: [vibexp]
+    name_template: "vibexp_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - src: completions/*
+        dst: completions
+      - src: manpages/*
+        dst: manpages
+      - README.md
+
+  # Homebrew-only archives (InstallSource=brew). Distinct name so the
+  # self-updater never mistakes them for a canonical asset.
+  - id: homebrew
+    ids: [vibexp-brew]
+    name_template: "vibexp_homebrew_{{ .Version }}_{{ .Os }}-{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - src: completions/*
+        dst: completions
+      - src: manpages/*
+        dst: manpages
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: git
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^style:"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+homebrew_casks:
+  - name: vibexp
+    ids: [homebrew]
+    binaries:
+      - vibexp
+    repository:
+      owner: vibexp
+      name: homebrew-tap
+      branch: main
+      # Pushed with a scoped GitHub App installation token (contents:write on
+      # vibexp/homebrew-tap only); the release itself uses the workflow's
+      # built-in GITHUB_TOKEN. TAP_GITHUB_TOKEN is always set in the environment
+      # (empty on snapshot builds, which never publish).
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/vibexp/cli"
+    description: "Command-line interface for the VibeXP platform"
+    url:
+      verified: "github.com/vibexp/cli/"
+    # Skip the cask push for snapshots and pre-releases automatically.
+    skip_upload: auto
+    completions:
+      bash: completions/vibexp.bash
+      zsh: completions/vibexp.zsh
+      fish: completions/vibexp.fish
+    manpages:
+      - manpages/vibexp.1
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr",
+                           args: ["-dr", "com.apple.quarantine", "#{staged_path}/vibexp"]
+          end
+
+release:
+  # Only the canonical "default" archives (plus checksums) are the headline
+  # assets; the homebrew archives ride along for the formula's download URL.
+  github:
+    owner: vibexp
+    name: cli

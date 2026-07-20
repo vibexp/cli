@@ -7,15 +7,55 @@ Cross-platform command-line interface for the [VibeXP](https://vibexp.io) platfo
 
 ## Install
 
+| Method | Command | Upgrades via |
+| --- | --- | --- |
+| **Homebrew** (macOS) | `brew install vibexp/tap/vibexp` | `brew upgrade vibexp` |
+| **Binary download** (Linux · macOS · Windows) | archive from [Releases](https://github.com/vibexp/cli/releases/latest) | `vibexp update` |
+| **`go install`** | `go install github.com/vibexp/cli/cmd/vibexp@latest` | re-run with `@latest` |
+
+### Homebrew (macOS)
+
 ```bash
-go install github.com/vibexp/cli/cmd/vibexp@latest
+brew install vibexp/tap/vibexp
+vibexp version            # source: brew
 ```
+
+### Binary download (Linux · macOS · Windows)
+
+Download the archive for your OS/arch from the [latest release](https://github.com/vibexp/cli/releases/latest)
+(`vibexp_<version>_<os>_<arch>.tar.gz`, or `.zip` on Windows), verify it against
+`checksums.txt`, extract, and put `vibexp` on your `PATH`:
+
+```bash
+VERSION=X.Y.Z; OS=linux; ARCH=amd64          # e.g. VERSION=0.1.0
+base=https://github.com/vibexp/cli/releases/download/v${VERSION}
+curl -sSLO "${base}/vibexp_${VERSION}_${OS}_${ARCH}.tar.gz"
+curl -sSLO "${base}/checksums.txt"
+sha256sum --check --ignore-missing checksums.txt
+tar -xzf "vibexp_${VERSION}_${OS}_${ARCH}.tar.gz"
+sudo install vibexp /usr/local/bin/vibexp
+vibexp version            # source: binary — self-updates via `vibexp update`
+```
+
+Binaries installed this way self-update in place with `vibexp update`.
+
+### go install
+
+```bash
+go install github.com/vibexp/cli/cmd/vibexp@latest    # or @vX.Y.Z
+```
+
+Requires no cgo and no build-time codegen; the version is reported from the
+module build info (`debug.ReadBuildInfo`). Upgrade by re-running with `@latest`.
 
 Or build from source:
 
 ```bash
-make build      # -> bin/vibexp
+make build                # -> bin/vibexp
 ```
+
+Every release archive also bundles shell completions and man pages — see
+[Shell completions & man pages](#shell-completions--man-pages).
 
 ## Usage
 
@@ -306,6 +346,23 @@ Every invocation appends structured JSON-lines logs to `~/.vibexp/logs/cli.log`
 (5 MB × 3 rotation). Credentials are redacted at the logger and can never be
 written. `--debug` mirrors logs to stderr.
 
+## Shell completions & man pages
+
+`vibexp` generates its own completion scripts for **bash, zsh, fish, and
+powershell**:
+
+```bash
+vibexp completion bash > /etc/bash_completion.d/vibexp         # bash
+vibexp completion zsh  > "${fpath[1]}/_vibexp"                 # zsh
+vibexp completion fish > ~/.config/fish/completions/vibexp.fish
+```
+
+Run `vibexp completion --help` for the exact per-shell instructions. The
+**Homebrew** cask installs completions and a man page automatically. The
+**binary-download** archives bundle `completions/` (all four shells) and
+`manpages/` (`man vibexp`, plus one page per subcommand) for manual
+installation.
+
 ## Development
 
 ```bash
@@ -314,5 +371,7 @@ make test     # go test -race ./...
 make build    # ldflags-stamped binary
 ```
 
-See [docs/architecture.md](docs/architecture.md) for the canonical package
-layout every command follows.
+Releases are automated with [goreleaser](https://goreleaser.com); see
+[docs/releasing.md](docs/releasing.md) for the release process, and
+[docs/architecture.md](docs/architecture.md) for the canonical package layout
+every command follows.
