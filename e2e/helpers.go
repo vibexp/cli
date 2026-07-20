@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -122,8 +123,10 @@ func parseJSON(t *testing.T, s string, into any) {
 	}
 }
 
-// firstListItem returns the items of a list response body that may be a bare
+// listItems returns the items of a list response body that may be a bare
 // array or wrap the list in a named field ({"teams": […]}, {"items": […]}, …).
+// Field probing is deterministic (known keys, then sorted), mirroring
+// apicmd/paginate.go's extractItems.
 func listItems(raw []byte) ([]map[string]any, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
@@ -137,7 +140,16 @@ func listItems(raw []byte) ([]map[string]any, error) {
 	if err := json.Unmarshal(trimmed, &obj); err != nil {
 		return nil, err
 	}
-	for _, v := range obj {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range append([]string{"items", "data"}, keys...) {
+		v, ok := obj[key]
+		if !ok {
+			continue
+		}
 		var arr []map[string]any
 		if json.Unmarshal(v, &arr) == nil {
 			return arr, nil
