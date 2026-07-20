@@ -1,5 +1,8 @@
 /bin/
 /dist/
 *.out
+# Generated at release time by ./cmd/docgen and bundled into archives.
+/completions/
+/manpages/
 # Built binary at repo root (anchored so it never ignores cmd/vibexp/).
 /vibexp

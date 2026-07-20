@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - ".goreleaser.yaml"
+      - ".github/workflows/release.yml"
+      - "cmd/docgen/**"
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.24"
+
+jobs:
+  # On PRs that touch release config, prove the pipeline end-to-end without
+  # publishing. No tokens or secrets required.
+  snapshot:
+    name: Snapshot build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: goreleaser check
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: check
+      - name: goreleaser release (snapshot)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+        env:
+          # Present-but-empty so the cask token template resolves; snapshots
+          # never publish the cask.
+          TAP_GITHUB_TOKEN: ""
+
+  # On a v* tag, build and publish the GitHub Release, then push the Homebrew
+  # cask. The release is created with the workflow's built-in GITHUB_TOKEN; the
+  # cask is pushed to vibexp/homebrew-tap with a short-lived GitHub App
+  # installation token scoped to that repo alone (contents:write).
+  release:
+    name: Publish release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Mint tap-push token (homebrew-tap only)
+        id: tap-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.VIBEXP_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.VIBEXP_BOT_PRIVATE_KEY }}
+          owner: vibexp
+          repositories: homebrew-tap
+      - name: goreleaser release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
