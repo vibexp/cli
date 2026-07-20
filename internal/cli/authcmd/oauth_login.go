@@ -3,6 +3,7 @@ package authcmd
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -13,12 +14,15 @@ import (
 	"github.com/vibexp/cli/internal/oauth"
 )
 
-// oauthScopes are requested on the authorization request. The embedded AS
-// issues `mcp`-scoped tokens.
-var oauthScopes = []string{"mcp"}
+// preferredScopes are the scopes the CLI would like on the authorization
+// request. `mcp` is what VibeXP's embedded authorization server issues, so it
+// stays preferred and is still requested against that server. On any deployment
+// whose advertised scopes_supported excludes `mcp`, negotiation drops it rather
+// than requesting an unknown scope. See oauth.NegotiateScopes.
+var preferredScopes = []string{"mcp"}
 
 // runBrowserLogin implements the default `auth login` (interactive OAuth 2.1).
-func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Getenv) error {
+func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Getenv, scopeOverride []string) error {
 	ctx := cmd.Context()
 	rt, err := requireRuntime(ctx)
 	if err != nil {
@@ -68,13 +72,18 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		}
 	}
 
+	// Negotiate the requested scopes against what the server advertises so we
+	// never send an unadvertised scope (which some authorization servers reject
+	// with invalid_scope). An explicit override (flag > env) short-circuits this.
+	scopes := oauth.NegotiateScopes(preferredScopes, meta.ScopesSupported, resolveScopeOverride(scopeOverride, getenv))
+
 	flow := &oauth.Flow{
 		HTTPClient:  hc,
 		Meta:        meta,
 		ClientID:    clientID,
 		RedirectURI: redirectURI,
 		Resource:    resource,
-		Scopes:      oauthScopes,
+		Scopes:      scopes,
 		Listener:    lis,
 		OpenBrowser: browserOpener(cmd),
 	}
@@ -110,6 +119,25 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 
 	cmd.PrintErrf("Logged in to context %q as %s <%s> (browser).\n", contextName, user.Name, string(user.Email))
 	return nil
+}
+
+// resolveScopeOverride returns an explicit scope override, or nil when none is
+// set. Precedence: --scope flag > VIBEXP_OAUTH_SCOPE env > none. The env value
+// is split on whitespace and commas so both "a b" and "a,b" work.
+func resolveScopeOverride(flagScopes []string, getenv config.Getenv) []string {
+	if len(flagScopes) > 0 {
+		return flagScopes
+	}
+	if getenv == nil {
+		return nil
+	}
+	env := getenv("VIBEXP_OAUTH_SCOPE")
+	if strings.TrimSpace(env) == "" {
+		return nil
+	}
+	return strings.FieldsFunc(env, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\n' || r == ','
+	})
 }
 
 // existingClientID returns the stored OAuth client_id for a context, or "".
