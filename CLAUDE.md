@@ -44,7 +44,7 @@ read it before picking up any issue.
 - **Stack:** Go 1.24, cobra, koanf, gojq, goreleaser. `CGO_ENABLED=0` (keeps `go install`
   clean). No telemetry. Targets: linux/darwin/windows × amd64/arm64.
 - **Env vars:** `VIBEXP_API_KEY`, `VIBEXP_BASE_URL`, `VIBEXP_CONTEXT`, `VIBEXP_TEAM`,
-  `VIBEXP_PROJECT`, `VIBEXP_FORMAT`, `VIBEXP_NO_UPDATE_CHECK`.
+  `VIBEXP_PROJECT`, `VIBEXP_FORMAT`, `VIBEXP_OAUTH_SCOPE`, `VIBEXP_NO_UPDATE_CHECK`.
 
 ## Canonical layout
 

@@ -95,6 +95,19 @@ RFC 8707 resource-indicated token exchange) and stores rotating tokens. Access
 tokens are refreshed transparently on expiry; concurrent invocations are
 serialized by a file lock so exactly one refresh happens.
 
+The scope requested on the authorization request is **negotiated** against the
+server's advertised `scopes_supported` (from RFC 8414 discovery) — the CLI only
+requests scopes the server actually offers, so login works across deployments
+rather than only the default embedded authorization server. For a deployment
+whose authorization server uses non-standard scope names, override negotiation
+with the repeatable `--scope` flag or `VIBEXP_OAUTH_SCOPE` (space/comma
+separated; flag > env):
+
+```bash
+vibexp auth login --scope openid --scope profile
+VIBEXP_OAUTH_SCOPE="openid profile" vibexp auth login
+```
+
 On a **headless/SSH** host (no browser), or a deployment **without an OAuth
 server**, or one whose REST API doesn't accept browser-login tokens, login fails
 fast (exit `4`) and points you at `--with-api-key`.

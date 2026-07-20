@@ -18,6 +18,7 @@ import (
 
 func newLogin(resolve StoreResolver, getenv config.Getenv) *cobra.Command {
 	var withAPIKey bool
+	var scopes []string
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Authenticate a context (browser or API key)",
@@ -32,10 +33,11 @@ func newLogin(resolve StoreResolver, getenv config.Getenv) *cobra.Command {
 			if withAPIKey {
 				return runAPIKeyLogin(cmd, resolve)
 			}
-			return runBrowserLogin(cmd, resolve, getenv)
+			return runBrowserLogin(cmd, resolve, getenv, scopes)
 		},
 	}
 	cmd.Flags().BoolVar(&withAPIKey, "with-api-key", false, "authenticate with an API key (read from prompt or stdin) instead of the browser")
+	cmd.Flags().StringArrayVar(&scopes, "scope", nil, "OAuth scope to request (repeatable); overrides scope negotiation. Also VIBEXP_OAUTH_SCOPE")
 	return cmd
 }
 
