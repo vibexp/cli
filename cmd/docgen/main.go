@@ -4,7 +4,12 @@
 // `go install github.com/vibexp/cli/cmd/vibexp@latest` path stays free of its
 // extra dependencies (cobra/doc, go-md2man).
 //
-// Usage: go run ./cmd/docgen [output-dir]   (output-dir defaults to ".")
+// Usage: go run ./cmd/docgen [output-dir] [version]
+//
+//	output-dir  where to write (defaults to ".")
+//	version     stamped into the man-page header; defaults to version.Version.
+//	            The goreleaser before-hook passes the release version, since
+//	            `go run` builds carry no -ldflags.
 //
 // It writes:
 //
@@ -29,13 +34,17 @@ func main() {
 	if len(os.Args) > 1 {
 		outDir = os.Args[1]
 	}
-	if err := run(outDir); err != nil {
+	docVersion := version.Version
+	if len(os.Args) > 2 && os.Args[2] != "" {
+		docVersion = os.Args[2]
+	}
+	if err := run(outDir, docVersion); err != nil {
 		fmt.Fprintln(os.Stderr, "docgen:", err)
 		os.Exit(1)
 	}
 }
 
-func run(outDir string) error {
+func run(outDir, docVersion string) error {
 	root := cli.NewRootCommand(cli.Options{})
 	// Reproducible output: never stamp the generation date into the man pages.
 	disableAutoGenTag(root)
@@ -51,7 +60,7 @@ func run(outDir string) error {
 	if err := genCompletions(root, completionsDir); err != nil {
 		return fmt.Errorf("completions: %w", err)
 	}
-	if err := genManPages(root, manDir); err != nil {
+	if err := genManPages(root, manDir, docVersion); err != nil {
 		return fmt.Errorf("man pages: %w", err)
 	}
 	return nil
@@ -72,12 +81,12 @@ func genCompletions(root *cobra.Command, dir string) error {
 }
 
 // genManPages writes a section-1 man page for the root command and every
-// subcommand.
-func genManPages(root *cobra.Command, dir string) error {
+// subcommand. docVersion is stamped into the header's Source field.
+func genManPages(root *cobra.Command, dir, docVersion string) error {
 	header := &doc.GenManHeader{
 		Title:   "VIBEXP",
 		Section: "1",
-		Source:  "vibexp " + version.Version,
+		Source:  "vibexp " + docVersion,
 		Manual:  "VibeXP CLI Manual",
 	}
 	return doc.GenManTree(root, header, dir)
