@@ -12,9 +12,17 @@ import "strings"
 // Otherwise the result is the intersection of the CLI's preferred scopes with
 // the server-advertised scopes_supported (RFC 8414), preserving preferred
 // order. This means an unadvertised scope is never requested — some
-// authorization servers reject an unknown scope with invalid_scope. An empty
-// result (nothing preferred is advertised, or the server advertises nothing)
-// tells the flow to omit the scope parameter entirely.
+// authorization servers reject an unknown scope with invalid_scope.
+//
+// When nothing preferred is advertised but the server does advertise scopes,
+// the full advertised set is requested instead of nothing. A scope-enforcing
+// authorization server that advertises only non-preferred scopes (e.g.
+// ["read","write"]) would otherwise get an empty request — and an empty scope
+// declared at registration — so browser login could never succeed there. The
+// server-advertised set is a safe superset to request and to declare at DCR.
+//
+// An empty result (the server advertises nothing) tells the flow to omit the
+// scope parameter entirely.
 func NegotiateScopes(preferred, supported, override []string) []string {
 	if len(override) > 0 {
 		return cleanScopes(override)
@@ -31,6 +39,9 @@ func NegotiateScopes(preferred, supported, override []string) []string {
 		if _, ok := advertised[p]; ok {
 			out = append(out, p)
 		}
+	}
+	if len(out) == 0 {
+		return cleanScopes(supported)
 	}
 	return out
 }

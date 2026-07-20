@@ -27,6 +27,10 @@ type Entry struct {
 	AccessToken  string    `json:"access_token,omitempty"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at,omitempty"`
+	// Scopes are the scopes declared when ClientID was registered (RFC 7591
+	// scope). Browser login reuses a stored client only when its scopes cover
+	// the scopes it needs to request; older entries have none and re-register.
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 // file is the on-disk document: a map of context name -> entry.
