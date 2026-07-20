@@ -63,19 +63,24 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}
 
-	// Reuse a previously-registered client_id for this context when present.
-	clientID := existingClientID(store, contextName)
+	// Negotiate the requested scopes against what the server advertises so we
+	// never send an unadvertised scope (which some authorization servers reject
+	// with invalid_scope). An explicit override (flag > env) short-circuits this.
+	// This runs before registration so the scopes can be declared at DCR.
+	scopes := oauth.NegotiateScopes(preferredScopes, meta.ScopesSupported, resolveScopeOverride(scopeOverride, getenv))
+
+	// Reuse a previously-registered client only when its declared scopes cover
+	// what we will request. An authorization server that grants per-client
+	// scopes from the registration bars the client from any scope it did not
+	// declare at DCR, so a client registered without the needed scopes (e.g. by
+	// an older CLI that declared none) must be re-registered rather than reused.
+	clientID := reusableClientID(store, contextName, scopes)
 	if clientID == "" {
-		clientID, err = oauth.Register(ctx, hc, meta.RegistrationEndpoint, redirectURI)
+		clientID, err = oauth.Register(ctx, hc, meta.RegistrationEndpoint, redirectURI, scopes)
 		if err != nil {
 			return exitcode.New(exitcode.RuntimeErr, err)
 		}
 	}
-
-	// Negotiate the requested scopes against what the server advertises so we
-	// never send an unadvertised scope (which some authorization servers reject
-	// with invalid_scope). An explicit override (flag > env) short-circuits this.
-	scopes := oauth.NegotiateScopes(preferredScopes, meta.ScopesSupported, resolveScopeOverride(scopeOverride, getenv))
 
 	flow := &oauth.Flow{
 		HTTPClient:  hc,
@@ -113,6 +118,7 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
+		Scopes:       scopes,
 	}); err != nil {
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}
@@ -140,13 +146,37 @@ func resolveScopeOverride(flagScopes []string, getenv config.Getenv) []string {
 	})
 }
 
-// existingClientID returns the stored OAuth client_id for a context, or "".
-func existingClientID(store *cred.Store, contextName string) string {
+// reusableClientID returns the stored OAuth client_id for a context, but only
+// when it exists and its recorded scopes cover want; otherwise "" (register a
+// fresh client). A stored client whose declared scopes do not cover what we
+// need would be barred from those scopes by a scope-enforcing authorization
+// server, so it must not be reused.
+func reusableClientID(store *cred.Store, contextName string, want []string) string {
 	entry, err := store.Get(contextName)
-	if err != nil || entry == nil {
+	if err != nil || entry == nil || entry.ClientID == "" {
+		return ""
+	}
+	if !scopesCovered(entry.Scopes, want) {
 		return ""
 	}
 	return entry.ClientID
+}
+
+// scopesCovered reports whether every scope in want appears in have.
+func scopesCovered(have, want []string) bool {
+	if len(want) == 0 {
+		return true
+	}
+	set := make(map[string]struct{}, len(have))
+	for _, s := range have {
+		set[s] = struct{}{}
+	}
+	for _, w := range want {
+		if _, ok := set[w]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // browserOpener opens the URL and, on failure, prints it for manual opening so

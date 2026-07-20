@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -92,7 +94,7 @@ func TestRegister(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	id, err := Register(context.Background(), srv.Client(), srv.URL, "http://127.0.0.1:12345/callback")
+	id, err := Register(context.Background(), srv.Client(), srv.URL, "http://127.0.0.1:12345/callback", []string{"mcp", "openid"})
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -107,6 +109,27 @@ func TestRegister(t *testing.T) {
 	}
 	if !contains(gotReq.GrantTypes, "refresh_token") {
 		t.Errorf("grant_types missing refresh_token: %v", gotReq.GrantTypes)
+	}
+	// The requested scopes must be declared at registration (RFC 7591 scope) so
+	// a scope-enforcing authorization server grants them to this client.
+	if gotReq.Scope != "mcp openid" {
+		t.Errorf("scope = %q, want %q", gotReq.Scope, "mcp openid")
+	}
+}
+
+func TestRegisterOmitsEmptyScope(t *testing.T) {
+	var gotReq registrationRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotReq)
+		_, _ = w.Write([]byte(`{"client_id":"client-noscope"}`))
+	}))
+	defer srv.Close()
+
+	if _, err := Register(context.Background(), srv.Client(), srv.URL, "http://127.0.0.1:12345/callback", nil); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if gotReq.Scope != "" {
+		t.Errorf("scope = %q, want empty (omitted when no scopes)", gotReq.Scope)
 	}
 }
 
@@ -194,6 +217,128 @@ func TestFlowEndToEnd(t *testing.T) {
 	}
 	if tok.AccessToken == "" {
 		t.Errorf("no access token from flow")
+	}
+}
+
+// TestFlowScopeEnforcingAS is the end-to-end regression for issue #35: an
+// authorization server that grants each client only the scopes it declared at
+// registration (fosite exact-match / Ory Hydra / Keycloak style) must accept
+// the CLI's authorization request because Register now declares those scopes.
+// A client registered without the scope is rejected with invalid_scope — the
+// exact failure the DCR fix removes.
+func TestFlowScopeEnforcingAS(t *testing.T) {
+	var mu sync.Mutex
+	granted := map[string][]string{} // client_id -> scopes granted at registration
+	nextID := 0
+	st := &asState{}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		var req registrationRequest
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		mu.Lock()
+		nextID++
+		id := fmt.Sprintf("client-%d", nextID)
+		granted[id] = strings.Fields(req.Scope) // grant exactly what was declared
+		mu.Unlock()
+		_, _ = fmt.Fprintf(w, `{"client_id":%q}`, id)
+	})
+	// /authorize enforces the per-client allow-list, then redirects back to the
+	// loopback callback with either a code or error=invalid_scope.
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		redirect := q.Get("redirect_uri")
+		state := url.QueryEscape(q.Get("state"))
+		mu.Lock()
+		allow := granted[q.Get("client_id")]
+		mu.Unlock()
+		for _, s := range strings.Fields(q.Get("scope")) {
+			if !contains(allow, s) {
+				http.Redirect(w, r, redirect+"?error=invalid_scope&error_description=client+not+allowed+scope&state="+state, http.StatusFound)
+				return
+			}
+		}
+		http.Redirect(w, r, redirect+"?code=auth-code-1&state="+state, http.StatusFound)
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.Form.Get("code") == "" || r.Form.Get("code_verifier") == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"invalid_request"}`))
+			return
+		}
+		access, refresh := st.issue()
+		writeToken(w, access, refresh)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	meta := &Metadata{
+		AuthorizationEndpoint: srv.URL + "/authorize",
+		TokenEndpoint:         srv.URL + "/token",
+		RegistrationEndpoint:  srv.URL + "/register",
+		ScopesSupported:       []string{"mcp"},
+	}
+
+	// Declare the negotiated scope at registration, then run the flow.
+	scopes := NegotiateScopes([]string{"mcp"}, meta.ScopesSupported, nil)
+	clientID, err := Register(context.Background(), srv.Client(), meta.RegistrationEndpoint, "http://127.0.0.1:1/callback", scopes)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	lis, redirectURI, err := Listen()
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	// Simulated browser: follow the /authorize redirect to the loopback callback.
+	opener := func(rawURL string) error {
+		go func() {
+			resp, _ := srv.Client().Get(rawURL)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		return nil
+	}
+
+	flow := &Flow{
+		HTTPClient:  srv.Client(),
+		Meta:        meta,
+		ClientID:    clientID,
+		RedirectURI: redirectURI,
+		Scopes:      scopes,
+		Listener:    lis,
+		OpenBrowser: opener,
+		Timeout:     5 * time.Second,
+	}
+	tok, err := flow.Run(context.Background())
+	if err != nil {
+		t.Fatalf("flow.Run against scope-enforcing AS: %v", err)
+	}
+	if tok.AccessToken == "" {
+		t.Errorf("no access token from flow")
+	}
+
+	// Control: a client registered without the scope is barred — proving the
+	// server truly enforces per-client scopes and the DCR declaration is why
+	// the flow above succeeded.
+	mu.Lock()
+	granted["client-unscoped"] = nil
+	mu.Unlock()
+	lis2, redirectURI2, _ := Listen()
+	flow2 := &Flow{
+		HTTPClient:  srv.Client(),
+		Meta:        meta,
+		ClientID:    "client-unscoped",
+		RedirectURI: redirectURI2,
+		Scopes:      []string{"mcp"},
+		Listener:    lis2,
+		OpenBrowser: opener,
+		Timeout:     5 * time.Second,
+	}
+	if _, err := flow2.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "invalid_scope") {
+		t.Errorf("unscoped client: got err %v, want invalid_scope", err)
 	}
 }
 

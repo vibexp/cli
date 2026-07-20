@@ -22,10 +22,22 @@ func TestNegotiateScopes(t *testing.T) {
 			want:      []string{"mcp"},
 		},
 		{
-			name:      "mcp absent is dropped",
+			name:      "no preferred advertised falls back to full advertised set",
 			preferred: preferred,
 			supported: []string{"openid", "profile"},
-			want:      nil,
+			want:      []string{"openid", "profile"},
+		},
+		{
+			name:      "no preferred advertised falls back on scope-enforcing server",
+			preferred: preferred,
+			supported: []string{"read", "write"},
+			want:      []string{"read", "write"},
+		},
+		{
+			name:      "fallback set is de-duplicated",
+			preferred: preferred,
+			supported: []string{"read", "read", "write"},
+			want:      []string{"read", "write"},
 		},
 		{
 			name:      "empty supported omits scope",

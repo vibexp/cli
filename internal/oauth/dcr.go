@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 // clientName is the DCR client_name advertised for this CLI.
@@ -20,6 +21,11 @@ type registrationRequest struct {
 	GrantTypes              []string `json:"grant_types"`
 	ResponseTypes           []string `json:"response_types"`
 	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
+	// Scope is the RFC 7591 §2 space-separated set of scopes the client will
+	// request. Declaring it lets an authorization server that grants per-client
+	// scopes from the registration (fosite exact-match, Ory Hydra, Keycloak)
+	// grant this client the scopes it later asks for; omitted when empty.
+	Scope string `json:"scope,omitempty"`
 }
 
 type registrationResponse struct {
@@ -27,8 +33,10 @@ type registrationResponse struct {
 }
 
 // Register performs RFC 7591 dynamic client registration for a public client
-// and returns the issued client_id.
-func Register(ctx context.Context, hc *http.Client, registrationEndpoint, redirectURI string) (string, error) {
+// and returns the issued client_id. The scopes the client intends to request
+// are declared as the RFC 7591 `scope` field so a scope-enforcing authorization
+// server grants them to this client; an empty set omits the field.
+func Register(ctx context.Context, hc *http.Client, registrationEndpoint, redirectURI string, scopes []string) (string, error) {
 	if registrationEndpoint == "" {
 		return "", fmt.Errorf("deployment does not support dynamic client registration")
 	}
@@ -38,6 +46,7 @@ func Register(ctx context.Context, hc *http.Client, registrationEndpoint, redire
 		GrantTypes:              []string{"authorization_code", "refresh_token"},
 		ResponseTypes:           []string{"code"},
 		TokenEndpointAuthMethod: "none", // public client
+		Scope:                   strings.Join(scopes, " "),
 	}
 	buf, err := json.Marshal(payload)
 	if err != nil {
