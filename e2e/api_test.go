@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"testing"
+	"time"
 )
 
 // TestAPIRawGet proves the raw passthrough: `vibexp api GET` returns the raw
@@ -26,6 +27,13 @@ func TestAPIRawGet(t *testing.T) {
 // TestAPIPaginate proves --paginate walks a paged list endpoint and merges all
 // pages into one JSON array: with limit=1, three namespaced memories must all
 // come back in a single merged result.
+//
+// Sibling tests create and delete memories in the same team concurrently, and
+// offset pagination has no snapshot isolation — a delete during the page walk
+// shifts later rows up a page, so a single walk can miss a row (issue #40).
+// The walk-and-check therefore retries briefly: the collection is stable
+// within milliseconds of the mutating tests finishing, and the merge property
+// under test must still hold for a pass.
 func TestAPIPaginate(t *testing.T) {
 	t.Parallel()
 
@@ -36,24 +44,35 @@ func TestAPIPaginate(t *testing.T) {
 	}
 
 	args := []string{"api", "GET", "/api/v1/" + teamID + "/memories?limit=1", "--paginate"}
-	stdout, stderr, code := run(t, authEnv(), args...)
-	requireCode(t, 0, code, stdout, stderr, args...)
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		stdout, stderr, code := run(t, authEnv(), args...)
+		requireCode(t, 0, code, stdout, stderr, args...)
 
-	var merged []map[string]any
-	parseJSON(t, stdout, &merged)
-	if len(merged) < len(want) {
-		t.Fatalf("--paginate merged %d items, want at least %d", len(merged), len(want))
-	}
-	for _, it := range merged {
-		if id, _ := it["id"].(string); id != "" {
-			if _, ok := want[id]; ok {
-				want[id] = true
+		var merged []map[string]any
+		parseJSON(t, stdout, &merged)
+		for id := range want {
+			want[id] = false
+		}
+		for _, it := range merged {
+			if id, _ := it["id"].(string); id != "" {
+				if _, ok := want[id]; ok {
+					want[id] = true
+				}
 			}
 		}
-	}
-	for id, seen := range want {
-		if !seen {
-			t.Fatalf("memory %s missing from merged --paginate output (%d items)", id, len(merged))
+		missing := ""
+		for id, seen := range want {
+			if !seen {
+				missing = id
+			}
 		}
+		if missing == "" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("memory %s missing from merged --paginate output (%d items) after retries", missing, len(merged))
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 }
