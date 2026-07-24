@@ -108,9 +108,12 @@ vibexp auth login --scope openid --scope profile
 VIBEXP_OAUTH_SCOPE="openid profile" vibexp auth login
 ```
 
-On a **headless/SSH** host (no browser), or a deployment **without an OAuth
-server**, or one whose REST API doesn't accept browser-login tokens, login fails
-fast (exit `4`) and points you at `--with-api-key`.
+Browser login also works against the REST API (`/api/v1`) — **by default** on
+platform v0.8.0+ deployments running the embedded authorization server, which
+auto-wire REST to accept these tokens. On a **headless/SSH** host (no browser), a
+deployment **without an OAuth server**, or the exception of one whose REST layer
+isn't wired to accept browser-login tokens (an external IdP, or `api_oauth`
+disabled), login fails fast (exit `4`) and points you at `--with-api-key`.
 
 Credentials are stored per context in `~/.vibexp/credentials.json` (0600),
 separate from config. For CI/scripts, set `VIBEXP_API_KEY` and skip login
