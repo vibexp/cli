@@ -19,7 +19,7 @@ import (
 	"github.com/vibexp/cli/internal/output"
 )
 
-// columns are shared by the list (multi-row) and single-item renderers.
+// columns drive the list (multi-row) view — kept compact.
 var columns = []output.Column{
 	{Header: "SLUG", Path: ".slug"},
 	{Header: "TITLE", Path: ".title"},
@@ -27,8 +27,22 @@ var columns = []output.Column{
 	{Header: "UPDATED", Path: ".updated_at"},
 }
 
+// detailColumns drive the single-object views (get/create/update/delete), which
+// additionally surface the v0.8.0 file-fidelity fields: the canonical
+// repo-relative `path` and, for imported blueprints, the import provenance
+// (`source.repo` / short `source.commit_sha`). Absent fields render empty.
+var detailColumns = []output.Column{
+	{Header: "SLUG", Path: ".slug"},
+	{Header: "TITLE", Path: ".title"},
+	{Header: "TYPE", Path: ".type"},
+	{Header: "PATH", Path: ".path"},
+	{Header: "SOURCE_REPO", Path: ".source.repo"},
+	{Header: "SOURCE_COMMIT", Path: ".source.commit_sha[0:12]"},
+	{Header: "UPDATED", Path: ".updated_at"},
+}
+
 // itemSpec renders a single blueprint object.
-var itemSpec = output.TableSpec{Rows: ".", Columns: columns}
+var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
 // New builds the `blueprint` command group.
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
