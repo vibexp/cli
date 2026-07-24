@@ -300,6 +300,26 @@ The content type is detected from the file (extension, then a content sniff) and
 can be overridden with `--content-type`. A progress indicator is shown only on a
 terminal, so piped output stays clean.
 
+### Relations
+
+Typed, directed edges between resources (artifact · memory · prompt · blueprint)
+— the knowledge-graph primitive (platform v0.8.0). `list` shows the relations
+touching a resource, in both directions:
+
+```bash
+vibexp relations list blueprint <blueprint-id>          # both directions; +pagination flags
+vibexp relations create \
+  --from-type artifact --from-id <id> \
+  --to-type blueprint  --to-id <id> \
+  --relation-type governed-by --origin human            # idempotent; 200 if the edge exists
+vibexp relations confirm <relation-id>                  # promote suggested → confirmed
+vibexp relations delete <relation-id>                   # --yes for scripts
+vibexp relations seed                                   # AI-propose edges from similarity (background)
+```
+
+Relation types are `governed-by` · `built-from` · `explained-by` · `supersedes`;
+origin is `human` or `ai`; status is `suggested` or `confirmed`.
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
