@@ -155,6 +155,10 @@ func TestRelationCreateFlags(t *testing.T) {
 	if !strings.Contains(out, "rel-1") {
 		t.Errorf("create output missing edge id: %q", out)
 	}
+	// The custom FROM/TO columns concatenate type + id.
+	if !strings.Contains(out, "artifact a-1") || !strings.Contains(out, "blueprint b-1") {
+		t.Errorf("create output missing FROM/TO columns: %q", out)
+	}
 }
 
 func TestRelationCreateIdempotent200(t *testing.T) {
