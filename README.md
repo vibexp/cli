@@ -206,9 +206,27 @@ addressed by `(project, slug)`, so every single-item verb resolves a project
 vibexp blueprint list --project my-proj                      # +pagination flags
 vibexp blueprint create rules --project my-proj \
   --title "House rules" --body-file rules.md                 # --body-file <path|->
-vibexp blueprint get rules --project my-proj
+vibexp blueprint get rules --project my-proj                 # detail view: +PATH, source repo/commit
 vibexp blueprint update rules --project my-proj --body-file rules.md
 vibexp blueprint delete rules --project my-proj              # --yes for scripts
+```
+
+The single-blueprint detail view (get/create/update) surfaces the v0.8.0
+file-fidelity fields — the canonical `path` and, for imported blueprints, the
+import provenance (`source.repo` / short `source.commit_sha`); `list` stays
+compact.
+
+Any resource `get` (memory · blueprint · prompt · artifact) accepts
+`--show-relations`, which prints a compact summary of the v0.8.0 read-time
+neighborhood to **stderr** — the typed `related` edges and embedding-`similar`
+resources — leaving stdout (and `--format=json`, which always carries the full
+arrays) untouched:
+
+```bash
+vibexp memory get <id> --show-relations
+# stdout: the memory row
+# stderr: related (2): outgoing governed-by blueprint "House rules"; …
+#         similar (1): memory "Why pgvector" (0.82)
 ```
 
 ### Prompts
