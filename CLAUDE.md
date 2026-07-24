@@ -27,8 +27,12 @@ read it before picking up any issue.
   RFC 7591 dynamic client registration (public client, loopback
   `http://127.0.0.1:<port>/callback`) → auth-code + PKCE S256 → RFC 8707 `resource`
   indicator. Rotating refresh tokens (access ~15m, refresh ~30d); refresh serialized via
-  file lock. **No device-code flow exists server-side.** OAuth JWTs work on REST `/api/v1`
-  only when a deployment sets `api_oauth.issuer` — detect and guide to API keys otherwise.
+  file lock. **No device-code flow exists server-side.** As of platform v0.8.0,
+  deployments running the embedded Authorization Server auto-wire `api_oauth.issuer`
+  (pinning the audience to the MCP resource), so OAuth JWTs work on REST `/api/v1` by
+  default; API-key fallback is the exception (an external IdP not wired for REST, or
+  `api_oauth` disabled). The CLI still probes real acceptance after login and guides
+  to API keys only when a deployment actually rejects the token.
 - **Output:** TTY-aware (tables on terminal, TSV piped); `--format=json|yaml|table|text`
   overrides; built-in `--jq` (gojq). **JSON contract = raw API response body** — no CLI
   mapping layer. stdout carries data only; all status/messaging goes to stderr.

@@ -100,14 +100,18 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 	logging.RegisterSecret(token.AccessToken)
 	logging.RegisterSecret(token.RefreshToken)
 
-	// Verify the tokens are accepted by the REST API. A 401 here (with a fresh,
-	// valid AS token) means this deployment's REST layer rejects AS JWTs
-	// (api_oauth.issuer unset) — guide to API keys instead of a raw 401.
+	// Verify the tokens are accepted by the REST API. As of platform v0.8.0,
+	// deployments running the embedded Authorization Server auto-derive
+	// api_oauth.issuer (and pin the audience to the MCP resource), so REST
+	// accepts these browser-login JWTs by default. A 401 here (with a fresh,
+	// valid AS token) therefore means a non-default setup — an external IdP whose
+	// issuer/audience is not wired for REST, or api_oauth disabled — so guide to
+	// API keys instead of surfacing a raw 401.
 	user, err := fetchIdentity(ctx, baseURL, token.AccessToken, rt.Timeout)
 	if err != nil {
 		var coded *exitcode.CodedError
 		if errors.As(err, &coded) && coded.Code == exitcode.AuthErr {
-			return exitcode.Auth("signed in, but this deployment's API does not accept browser-login tokens. Use: vibexp auth login --with-api-key")
+			return exitcode.Auth("signed in, but this deployment's REST API is not wired to accept browser-login tokens (external IdP, or the embedded auth server disabled). Use: vibexp auth login --with-api-key")
 		}
 		return err
 	}
