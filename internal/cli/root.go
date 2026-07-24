@@ -23,6 +23,7 @@ import (
 	"github.com/vibexp/cli/internal/cli/memorycmd"
 	"github.com/vibexp/cli/internal/cli/projectcmd"
 	"github.com/vibexp/cli/internal/cli/promptcmd"
+	"github.com/vibexp/cli/internal/cli/relationcmd"
 	"github.com/vibexp/cli/internal/cli/resource"
 	"github.com/vibexp/cli/internal/cli/searchcmd"
 	"github.com/vibexp/cli/internal/cli/teamcmd"
@@ -190,6 +191,7 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 	root.AddCommand(feedcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(searchcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(attachmentcmd.New(resource.CredResolver(credResolver), getenv))
+	root.AddCommand(relationcmd.New(resource.CredResolver(credResolver), getenv))
 	root.AddCommand(updatecmd.New())
 	root.AddCommand(versioncmd.New())
 
