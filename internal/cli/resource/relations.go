@@ -6,6 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/output"
 )
 
 // relationsSummaryMax caps how many entries each summary line names before
@@ -21,6 +24,19 @@ func AddRelationsFlag(cmd *cobra.Command) *bool {
 	cmd.Flags().BoolVar(show, "show-relations", false,
 		"print a compact related/similar summary to stderr (v0.8.0 read fields)")
 	return show
+}
+
+// RenderWithRelations renders a single-resource body through the output engine,
+// then — when showRelations is set — prints the v0.8.0 related/similar summary
+// to stderr. It is the shared tail of every resource `get` command.
+func RenderWithRelations(cmd *cobra.Command, rt *config.Runtime, getenv config.Getenv, body []byte, spec *output.TableSpec, showRelations bool) error {
+	if err := Render(cmd, rt, getenv, body, spec); err != nil {
+		return err
+	}
+	if showRelations {
+		RenderRelationsSummary(cmd, body)
+	}
+	return nil
 }
 
 type relatedItem struct {

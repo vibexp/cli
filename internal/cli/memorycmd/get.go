@@ -29,13 +29,7 @@ func newGet(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command 
 		if err != nil {
 			return err
 		}
-		if err := resource.Render(cmd, rt, getenv, body, &itemSpec); err != nil {
-			return err
-		}
-		if *showRelations {
-			resource.RenderRelationsSummary(cmd, body)
-		}
-		return nil
+		return resource.RenderWithRelations(cmd, rt, getenv, body, &itemSpec, *showRelations)
 	}
 	return cmd
 }
