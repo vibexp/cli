@@ -6,9 +6,17 @@ read it before picking up any issue.
 
 ## Where everything is defined
 
-- **Epic #2** holds the approved PRD, work-order graph, and all design decisions.
-- **Issues #3–#17** are refined (WHAT/WHY/HOW in each body) and independently workable;
-  the native blocked-by graph on GitHub is authoritative for ordering.
+v1 has shipped (epic #2 is closed). **The code and `docs/` are the source of truth** —
+this file front-loads the architecture-level facts an agent needs before touching
+anything; go to the code for detail, not to issue bodies.
+
+- `docs/architecture.md` — package layout, client layer, flag precedence, exit codes.
+- `docs/adding-commands.md` — how to add a curated resource command.
+- `docs/e2e.md` — the e2e suite and its stack.
+- `docs/releasing.md` — goreleaser + the release workflow.
+- `README.md` is **user-facing** (install, usage, scripting recipes). This file is
+  agent-facing. Keep them disjoint: don't restate install instructions here, and don't
+  put internal conventions there.
 - Related repos: `github.com/vibexp/vibexp` (the platform + OpenAPI spec at
   `backend/openapi.yaml`), `github.com/vibexp/api-client-go` (generated Go client this
   CLI consumes — oapi-codegen v2, committed `*.gen.go`, semver v0.x tags).
@@ -17,8 +25,9 @@ read it before picking up any issue.
 
 - **Grammar:** `vibexp <noun> <verb>` (e.g. `vibexp memory list`). Curated commands for
   memories, blueprints, prompts (incl. `prompt render`), artifacts, feeds, search,
-  attachments, whoami/teams/projects — plus `vibexp api <METHOD> <path>` raw passthrough
-  for everything else (~434 operations).
+  attachments, relations (`vibexp relations` — note the plural, the only one),
+  whoami/teams/projects — plus `vibexp api <METHOD> <path>` raw passthrough for
+  everything else. `vibexp --help` is the authoritative surface.
 - **Contexts:** multi-context (kubectl-style) in `~/.vibexp/config.yaml`; credentials
   separately in `~/.vibexp/credentials.json` (0600, atomic writes). Precedence everywhere:
   flag > env > active context.
@@ -54,10 +63,15 @@ read it before picking up any issue.
 
 ```
 cmd/vibexp/main.go        entrypoint; unwraps typed errors → exit codes
+cmd/docgen/               BUILD-TIME ONLY: generates shell completions + man pages
+                          for release archives. Never linked into the binary, which
+                          keeps `go install .../cmd/vibexp` free of cobra/doc deps.
 internal/cli/             cobra commands: root.go + one package per noun
   authcmd/ configcmd/ apicmd/ resource/ (shared list/pagination/confirm helpers)
   usercmd/ teamcmd/ projectcmd/ memorycmd/ blueprintcmd/ promptcmd/
-  artifactcmd/ feedcmd/ searchcmd/ attachmentcmd/ updatecmd/ versioncmd/
+  artifactcmd/ feedcmd/ searchcmd/ attachmentcmd/ relationcmd/ updatecmd/ versioncmd/
+internal/clictx/          carries the resolved runtime + logger on context.Context so
+                          command packages never import the root cli package (cycle)
 internal/config/          context store (koanf, ~/.vibexp/config.yaml)
 internal/cred/            credential store (0600 credentials.json, fingerprints)
 internal/oauth/           PKCE flow: discovery, DCR, callback server, refresh, flock
@@ -96,8 +110,8 @@ e2e/                      //go:build e2e — drives the built binary against sta
 - Destructive verbs: TTY confirmation prompt; non-interactive requires `--yes` (else exit 2).
 - Secrets are never accepted as plain CLI arguments (shell history) — hidden prompt or stdin.
 - Table fixtures/test data are always fabricated — never captured from a real deployment.
-- New resource commands follow `docs/adding-commands.md` (created in #9): endpoint +
-  columns only; everything else comes from `internal/cli/resource` + `internal/api`.
+- New resource commands follow `docs/adding-commands.md`: endpoint + columns only;
+  everything else comes from `internal/cli/resource` + `internal/api`.
 
 ## Staging verification (required for every issue)
 
@@ -116,6 +130,22 @@ namespaced `cli-e2e-<run-id>` and always cleaned up.
 - Board: org project "VibeXP" (`https://github.com/orgs/vibexp/projects/3`) — move the
   card In progress when starting, In review at PR time.
 - CI must stay green on lint + tests + the 6-target cross-compile matrix.
-- Cross-issue contracts to respect: release asset naming + `InstallSource` ldflag are
-  shared between #15 and #16; the credentials.json schema (#4) already reserves OAuth
-  fields for #5; `resource.ConfirmDeletion` (#10) is reused by #12/#14.
+- `make lint` · `make build`. For tests run `go test -race ./...` directly —
+  **`make test` is currently broken** (the Makefile exports `CGO_ENABLED=0`
+  file-wide and `-race` needs cgo; CI calls the command directly, so it never
+  catches it). Tracked in #48; drop this caveat when that lands.
+- E2E is separate: `make e2e` (build tag `e2e`, `-count=1`, skips cleanly when the
+  staging vars are absent), with `make e2e-stack-up` / `e2e-stack-down` for a local
+  platform container.
+- Standing contracts that outlived their issues — change these in lockstep:
+  release asset naming ↔ the `InstallSource` ldflag (`internal/version`), which
+  `vibexp update` reads to refuse self-updating a brew/`go install` build;
+  the `credentials.json` schema (`internal/cred`) carries both the API key and the
+  OAuth token set in one entry per context (keyed by context name);
+  `resource.ConfirmDeletion` is the single confirmation path for every resource
+  `delete` command — all six of them. (`auth logout` drops local credentials without
+  a prompt; it is not routed through this.)
+
+**Maintenance:** this file is hot-loaded into every agent session, so update it in the
+same PR whenever an architecture-level fact changes — a new package, a new noun, a
+changed convention. Detail belongs in `docs/`; keep this a map.
