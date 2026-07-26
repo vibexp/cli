@@ -141,8 +141,10 @@ namespaced `cli-e2e-<run-id>` and always cleaned up.
   release asset naming ↔ the `InstallSource` ldflag (`internal/version`), which
   `vibexp update` reads to refuse self-updating a brew/`go install` build;
   the `credentials.json` schema (`internal/cred`) carries both the API key and the
-  OAuth token set in one entry per context; `resource.ConfirmDeletion` is the single
-  confirmation path for every destructive verb.
+  OAuth token set in one entry per context (keyed by context name);
+  `resource.ConfirmDeletion` is the single confirmation path for every resource
+  `delete` command — all six of them. (`auth logout` drops local credentials without
+  a prompt; it is not routed through this.)
 
 **Maintenance:** this file is hot-loaded into every agent session, so update it in the
 same PR whenever an architecture-level fact changes — a new package, a new noun, a
