@@ -191,3 +191,19 @@ func TestBlueprintListPaginationAndProjectFilter(t *testing.T) {
 		t.Errorf("list json missing blueprint: %q", out)
 	}
 }
+
+func TestBlueprintListMetadataFilter(t *testing.T) {
+	var cap blueprintCapture
+	srv := blueprintServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
+		"blueprint", "list", "--metadata", "spec.type=api")
+	if code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	if cap.listQuery.Get("metadata") != `{"spec.type":["api"]}` {
+		t.Errorf("metadata param = %q", cap.listQuery.Get("metadata"))
+	}
+}

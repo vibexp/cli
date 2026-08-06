@@ -25,7 +25,9 @@ anything; go to the code for detail, not to issue bodies.
 
 - **Grammar:** `vibexp <noun> <verb>` (e.g. `vibexp memory list`). Curated commands for
   memories, blueprints, prompts (incl. `prompt render`), artifacts, feeds, search,
-  attachments, relations (`vibexp relations` — note the plural, the only one),
+  attachments, metadata (`vibexp metadata keys|values` — discovery backing the
+  `--metadata key=value` list filter on memories/artifacts/blueprints; memory list
+  also has `--tags`), relations (`vibexp relations` — note the plural, the only one),
   whoami/teams/projects — plus `vibexp api <METHOD> <path>` raw passthrough for
   everything else. `vibexp --help` is the authoritative surface.
 - **Contexts:** multi-context (kubectl-style) in `~/.vibexp/config.yaml`; credentials
@@ -68,7 +70,7 @@ cmd/docgen/               BUILD-TIME ONLY: generates shell completions + man pag
                           keeps `go install .../cmd/vibexp` free of cobra/doc deps.
 internal/cli/             cobra commands: root.go + one package per noun
   authcmd/ configcmd/ apicmd/ resource/ (shared list/pagination/confirm helpers)
-  usercmd/ teamcmd/ projectcmd/ memorycmd/ blueprintcmd/ promptcmd/
+  usercmd/ teamcmd/ projectcmd/ memorycmd/ metadatacmd/ blueprintcmd/ promptcmd/
   artifactcmd/ feedcmd/ searchcmd/ attachmentcmd/ relationcmd/ updatecmd/ versioncmd/
 internal/clictx/          carries the resolved runtime + logger on context.Context so
                           command packages never import the root cli package (cycle)

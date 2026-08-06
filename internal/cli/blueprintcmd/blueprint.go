@@ -118,6 +118,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			}
 			return path, nil
 		},
-		Spec: output.TableSpec{Rows: ".blueprints[]? // .items[]? // .data[]?", Columns: columns},
+		Spec:    output.TableSpec{Rows: ".blueprints[]? // .items[]? // .data[]?", Columns: columns},
+		Filters: &resource.MetadataFilter{},
 	})
 }

@@ -196,3 +196,33 @@ func TestMemoryListPaginationAndProjectFilter(t *testing.T) {
 		t.Errorf("list json missing memory: %q", out)
 	}
 }
+
+func TestMemoryListMetadataAndTagsFilter(t *testing.T) {
+	var cap memoryCapture
+	srv := memoryServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
+		"memory", "list", "--metadata", "env=prod", "--metadata", "env=staging",
+		"--metadata", "team=core", "--tags", "go")
+	if code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	want := `{"env":["prod","staging"],"tags":["go"],"team":["core"]}`
+	if cap.listQuery.Get("metadata") != want {
+		t.Errorf("metadata param = %q, want %q", cap.listQuery.Get("metadata"), want)
+	}
+}
+
+func TestMemoryListMetadataInvalidPairExit2(t *testing.T) {
+	var cap memoryCapture
+	srv := memoryServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "memory", "list", "--metadata", "noequals")
+	if code != exitcode.UsageErr {
+		t.Fatalf("list exit = %d, want %d", code, exitcode.UsageErr)
+	}
+}

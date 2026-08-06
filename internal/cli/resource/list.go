@@ -19,6 +19,9 @@ func NewListCommand(resolve CredResolver, getenv config.Getenv, short string, cf
 		Args:  cobra.NoArgs,
 	}
 	page := AddPaginationFlags(cmd)
+	if cfg.Filters != nil {
+		AddMetadataFlags(cmd, cfg.Filters)
+	}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		return RunList(cmd, resolve, getenv, cfg, page)
 	}
@@ -34,6 +37,9 @@ type ListConfig struct {
 	// Spec is the table/TSV column spec applied on a terminal or with
 	// --format=table|text.
 	Spec output.TableSpec
+	// Filters, when non-nil, binds --metadata (and --tags when Filters.Tags)
+	// on the command and merges the metadata containment param into the query.
+	Filters *MetadataFilter
 }
 
 // RunList is the shared runner for a list command: resolve runtime, build the
@@ -52,6 +58,12 @@ func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg
 	path, err = p.ApplyToPath(path)
 	if err != nil {
 		return err
+	}
+	if cfg.Filters != nil {
+		path, err = cfg.Filters.ApplyToPath(path)
+		if err != nil {
+			return err
+		}
 	}
 	client, err := Client(ctx, rt, resolve, getenv)
 	if err != nil {
