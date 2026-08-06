@@ -16,22 +16,24 @@ LDFLAGS     := -s -w \
 	-X $(VERSION_PKG).Date=$(DATE) \
 	-X $(VERSION_PKG).InstallSource=$(INSTALL_SOURCE)
 
-export CGO_ENABLED := 0
-
 .PHONY: all build install test lint fmt tidy clean e2e e2e-stack-up e2e-stack-down
 
 E2E_COMPOSE := docker compose -f e2e/docker-compose.yml
 
 all: lint test build
 
+# CGO_ENABLED=0 is set per recipe (not file-wide): the shipped binary must stay
+# cgo-free for `go install` and cross-compile, but `go test -race` requires cgo.
 build:
-	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY) $(CMD)
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY) $(CMD)
 
 install:
-	go install -ldflags "$(LDFLAGS)" $(CMD)
+	CGO_ENABLED=0 go install -ldflags "$(LDFLAGS)" $(CMD)
 
+# TESTFLAGS is overridable so CI can append coverage flags to this exact
+# command (`make test TESTFLAGS=...`) — one canonical test invocation, no drift.
 test:
-	go test -race ./...
+	go test -race $(TESTFLAGS) ./...
 
 lint:
 	golangci-lint run

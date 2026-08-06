@@ -130,10 +130,8 @@ namespaced `cli-e2e-<run-id>` and always cleaned up.
 - Board: org project "VibeXP" (`https://github.com/orgs/vibexp/projects/3`) — move the
   card In progress when starting, In review at PR time.
 - CI must stay green on lint + tests + the 6-target cross-compile matrix.
-- `make lint` · `make build`. For tests run `go test -race ./...` directly —
-  **`make test` is currently broken** (the Makefile exports `CGO_ENABLED=0`
-  file-wide and `-race` needs cgo; CI calls the command directly, so it never
-  catches it). Tracked in #48; drop this caveat when that lands.
+- `make lint` · `make test` · `make build` (CGO is scoped per recipe: `test`
+  runs with cgo for `-race`; `build`/`install` stay `CGO_ENABLED=0`).
 - E2E is separate: `make e2e` (build tag `e2e`, `-count=1`, skips cleanly when the
   staging vars are absent), with `make e2e-stack-up` / `e2e-stack-down` for a local
   platform container.
