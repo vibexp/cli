@@ -59,6 +59,20 @@ under `--format=json`; the `TableSpec` only drives table/TSV.
    expression, piped TSV, and pagination flags on real data. Never print or
    commit staging URLs/keys.
 
+## Metadata filtering on a list command
+
+When the endpoint accepts the platform's `metadata` JSON containment param
+(platform v0.9.0+), set `Filters` on the `ListConfig` — the shared builder
+binds `--metadata key=value` (repeatable) and merges it into the query:
+
+```go
+Filters: &resource.MetadataFilter{},          // --metadata only
+Filters: &resource.MetadataFilter{Tags: true}, // also --tags (memories: metadata.tags)
+```
+
+Discovery for filter authors lives in `vibexp metadata keys|values --type
+<artifacts|blueprints|memories>` (`internal/cli/metadatacmd`).
+
 ## Conventions
 
 - **Gate on `permissions`, never `role`** — team/permission display and any

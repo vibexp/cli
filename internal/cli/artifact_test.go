@@ -219,3 +219,19 @@ func TestArtifactListPaginationAndProjectFilter(t *testing.T) {
 		t.Errorf("list json missing artifact: %q", out)
 	}
 }
+
+func TestArtifactListMetadataFilter(t *testing.T) {
+	var cap artifactCapture
+	srv := artifactServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
+		"artifact", "list", "--metadata", "env=prod")
+	if code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	if cap.listQuery.Get("metadata") != `{"env":["prod"]}` {
+		t.Errorf("metadata param = %q", cap.listQuery.Get("metadata"))
+	}
+}
