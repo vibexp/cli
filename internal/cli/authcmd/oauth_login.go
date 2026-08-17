@@ -91,6 +91,9 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		Scopes:      scopes,
 		Listener:    lis,
 		OpenBrowser: browserOpener(cmd),
+		// stdout is data-only, so the retry notice goes to stderr alongside the
+		// "Opening your browser…" line below.
+		Notify: func(msg string) { cmd.PrintErrln(msg) },
 	}
 	cmd.PrintErrln("Opening your browser to sign in… (waiting for authorization)")
 	token, err := flow.Run(ctx)
@@ -122,7 +125,10 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
-		Scopes:       scopes,
+		// The scopes that actually worked, not the ones we asked for: after a
+		// no-scope retry these differ, and reusableClientID must reason about
+		// what the server accepted.
+		Scopes: flow.UsedScopes,
 	}); err != nil {
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}
@@ -152,9 +158,12 @@ func resolveScopeOverride(flagScopes []string, getenv config.Getenv) []string {
 
 // reusableClientID returns the stored OAuth client_id for a context, but only
 // when it exists and its recorded scopes cover want; otherwise "" (register a
-// fresh client). A stored client whose declared scopes do not cover what we
-// need would be barred from those scopes by a scope-enforcing authorization
-// server, so it must not be reused.
+// fresh client). A stored client whose last authorization request did not carry
+// what we need was either registered without those scopes or refused them by a
+// scope-enforcing authorization server, so it must not be reused. A login that
+// only got through on the no-scope retry therefore re-registers on the next
+// login — deliberately, since replaying the refused request would just cost the
+// user another rejected browser round trip.
 func reusableClientID(store *cred.Store, contextName string, want []string) string {
 	entry, err := store.Get(contextName)
 	if err != nil || entry == nil || entry.ClientID == "" {
