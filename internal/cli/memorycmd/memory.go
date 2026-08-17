@@ -17,17 +17,38 @@ import (
 	"github.com/vibexp/cli/internal/output"
 )
 
-// columns are shared by the list (multi-row) and single-item renderers.
+// columns drive the list (multi-row) view — kept compact, so freshness is
+// reduced to a single STALE flag.
 var columns = []output.Column{
 	{Header: "ID", Path: ".id"},
 	{Header: "PROJECT", Path: ".project_id"},
 	{Header: "STATUS", Path: ".status"},
+	{Header: "STALE", Path: ".freshness.status"},
+	{Header: "UPDATED", Path: ".updated_at"},
+	{Header: "TEXT", Path: ".text[0:60]"}, // preview of the content
+}
+
+// detailColumns drive the single-object views (get/create/update/delete). They
+// add the v0.11.0 freshness state, which the compact list view reduces to a
+// single flag. A resource carries `freshness` only while it is stale, so every
+// one of these cells is empty on a fresh resource.
+var detailColumns = []output.Column{
+	{Header: "ID", Path: ".id"},
+	{Header: "PROJECT", Path: ".project_id"},
+	{Header: "STATUS", Path: ".status"},
+	{Header: "STALE", Path: ".freshness.status"},
+	{Header: "STALE_SINCE", Path: ".freshness.since"},
+	{Header: "STALE_REASON", Path: ".freshness.reason"},
+	// Guarded rather than a bare `| length`: in jq `null | length` is 0, so an
+	// unguarded path would render "0" on every fresh resource — reading as
+	// "evaluated, no rules matched" instead of "not stale".
+	{Header: "STALE_RULES", Path: `if .freshness then (.freshness.matched_rule_ids | length | tostring) else "" end`},
 	{Header: "UPDATED", Path: ".updated_at"},
 	{Header: "TEXT", Path: ".text[0:60]"}, // preview of the content
 }
 
 // itemSpec renders a single memory object.
-var itemSpec = output.TableSpec{Rows: ".", Columns: columns}
+var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
 // New builds the `memory` command group.
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
