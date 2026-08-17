@@ -24,22 +24,22 @@ internal/cli/               cobra command tree
                             builds on (see docs/adding-commands.md)
   apicmd/                   vibexp api <METHOD> <path> — raw passthrough for everything
                             the curated nouns do not cover
-  artifactcmd/              vibexp artifact create|get|update|delete
+  artifactcmd/              vibexp artifact list|create|get|update|delete
   attachmentcmd/            vibexp attachment list|upload|delete
   authcmd/                  vibexp auth login|logout|status (API key + OAuth PKCE)
-  blueprintcmd/             vibexp blueprint create|get|update|delete
+  blueprintcmd/             vibexp blueprint list|create|get|update|delete
   configcmd/                vibexp config set-context|use-context|get-contexts|
                             current-context
-  feedcmd/                  vibexp feed post|items|get-item|reply
-  memorycmd/                vibexp memory create|get|update|delete
+  feedcmd/                  vibexp feed list|post|items|get-item|reply
+  memorycmd/                vibexp memory list|create|get|update|delete
   metadatacmd/              vibexp metadata keys|values — discovery backing the
                             --metadata key=value list filter
-  projectcmd/               vibexp project
-  promptcmd/                vibexp prompt create|get|update|delete|render
+  projectcmd/               vibexp project list
+  promptcmd/                vibexp prompt list|create|get|update|delete|render
   relationcmd/              vibexp relations list|create|confirm|delete|seed — the
                             plural noun, added with platform v0.8.0 relations
   searchcmd/                vibexp search <query>
-  teamcmd/                  vibexp team
+  teamcmd/                  vibexp team list
   updatecmd/                vibexp update (self-replace)
   usercmd/                  vibexp whoami
   versioncmd/               vibexp version
