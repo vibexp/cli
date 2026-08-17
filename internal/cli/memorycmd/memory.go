@@ -17,17 +17,34 @@ import (
 	"github.com/vibexp/cli/internal/output"
 )
 
-// columns are shared by the list (multi-row) and single-item renderers.
+// columns drive the list (multi-row) view — kept compact, so freshness is
+// reduced to a single STALE flag.
 var columns = []output.Column{
 	{Header: "ID", Path: ".id"},
 	{Header: "PROJECT", Path: ".project_id"},
 	{Header: "STATUS", Path: ".status"},
+	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
 	{Header: "TEXT", Path: ".text[0:60]"}, // preview of the content
 }
 
+// detailColumns drive the single-object views — get, and the create/update/
+// delete confirmations — which carry the full v0.11.0 freshness state the list
+// view reduces to one flag.
+var detailColumns = resource.WithFreshnessDetail(
+	[]output.Column{
+		{Header: "ID", Path: ".id"},
+		{Header: "PROJECT", Path: ".project_id"},
+		{Header: "STATUS", Path: ".status"},
+	},
+	[]output.Column{
+		{Header: "UPDATED", Path: ".updated_at"},
+		{Header: "TEXT", Path: ".text[0:60]"}, // preview of the content
+	},
+)
+
 // itemSpec renders a single memory object.
-var itemSpec = output.TableSpec{Rows: ".", Columns: columns}
+var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
 // New builds the `memory` command group.
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {

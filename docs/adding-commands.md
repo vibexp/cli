@@ -49,6 +49,13 @@ under `--format=json`; the `TableSpec` only drives table/TSV.
    }
    ```
 
+   A column that every curated resource carries is declared **once** in
+   `internal/cli/resource`, not copied per noun — `resource.FreshnessColumn()`
+   for the compact list flag and `resource.WithFreshnessDetail(head, tail)` to
+   splice the full v0.11.0 freshness block into a detail spec. Add the next
+   such field the same way; a literal copied into four noun packages is four
+   places to fix when its gojq expression turns out to be subtly wrong.
+
 3. **Register it** in `internal/cli/root.go`:
    `root.AddCommand(thingcmd.New(resource.CredResolver(credResolver), getenv))`.
 4. **Test it** — an `httptest` server returning a **fabricated** response shape,

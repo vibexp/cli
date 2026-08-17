@@ -19,16 +19,32 @@ import (
 	"github.com/vibexp/cli/internal/output"
 )
 
-// columns are shared by the list (multi-row) and single-item renderers.
+// columns drive the list (multi-row) view — kept compact, so freshness is
+// reduced to a single STALE flag.
 var columns = []output.Column{
 	{Header: "SLUG", Path: ".slug"},
 	{Header: "TITLE", Path: ".title"},
 	{Header: "PROJECT", Path: ".project_id"},
+	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
 }
 
+// detailColumns drive the single-object views — get, and the create/update/
+// delete confirmations — which carry the full v0.11.0 freshness state the list
+// view reduces to one flag.
+var detailColumns = resource.WithFreshnessDetail(
+	[]output.Column{
+		{Header: "SLUG", Path: ".slug"},
+		{Header: "TITLE", Path: ".title"},
+		{Header: "PROJECT", Path: ".project_id"},
+	},
+	[]output.Column{
+		{Header: "UPDATED", Path: ".updated_at"},
+	},
+)
+
 // itemSpec renders a single artifact object.
-var itemSpec = output.TableSpec{Rows: ".", Columns: columns}
+var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
 // New builds the `artifact` command group.
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {

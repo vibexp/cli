@@ -20,18 +20,34 @@ import (
 	"github.com/vibexp/cli/internal/output"
 )
 
-// columns are shared by the list (multi-row) and single-item renderers. Prompts
-// expose `name` (not `title`) and carry no variables field on the object —
-// placeholders live behind a separate endpoint that is out of scope here.
+// columns drive the list (multi-row) view — kept compact, so freshness is
+// reduced to a single STALE flag. Prompts expose `name` (not `title`) and carry
+// no variables field on the object — placeholders live behind a separate
+// endpoint that is out of scope here.
 var columns = []output.Column{
 	{Header: "SLUG", Path: ".slug"},
 	{Header: "NAME", Path: ".name"},
 	{Header: "STATUS", Path: ".status"},
+	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
 }
 
+// detailColumns drive the single-object views — get, and the create/update/
+// delete confirmations — which carry the full v0.11.0 freshness state the list
+// view reduces to one flag.
+var detailColumns = resource.WithFreshnessDetail(
+	[]output.Column{
+		{Header: "SLUG", Path: ".slug"},
+		{Header: "NAME", Path: ".name"},
+		{Header: "STATUS", Path: ".status"},
+	},
+	[]output.Column{
+		{Header: "UPDATED", Path: ".updated_at"},
+	},
+)
+
 // itemSpec renders a single prompt object.
-var itemSpec = output.TableSpec{Rows: ".", Columns: columns}
+var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
 // New builds the `prompt` command group.
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {

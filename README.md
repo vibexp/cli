@@ -208,6 +208,28 @@ endpoint has no metadata filter, so the flag is deliberately not offered rather
 than silently ignored); `--tags` is memories-only. Discover what you can filter
 on with `vibexp metadata keys` / `vibexp metadata values`.
 
+### Freshness in output
+
+The same four `list` commands carry a **`STALE`** column, so you can see which
+rows the team's freshness rules have flagged without filtering:
+
+```
+ID       PROJECT   STATUS   STALE   UPDATED                TEXT
+m-1      my-proj   active   stale   2026-02-01T00:00:00Z   an aging note
+m-2      my-proj   active           2026-08-14T00:00:00Z   a current note
+```
+
+The single-object views add the full state — `STALE_SINCE` (when it was *first*
+flagged, which is the age worth reading), `STALE_REASON` (`rule_run` ·
+`accessed` · `edited`) and `STALE_RULES` (how many rules matched; the raw ids
+stay in `--format=json`). That is `get` **and** the `create`/`update`/`delete`
+confirmations, which share one detail layout — so a script doing
+`vibexp memory create … | cut -f4` sees the wider row too.
+
+A resource carries freshness data **only while it is stale**, so every one of
+these cells is empty on a fresh resource — an empty `STALE` cell means fresh,
+not missing.
+
 ### Memories
 
 Full CRUD over memories (team-scoped; content via `--body-file`):
