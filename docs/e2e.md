@@ -36,6 +36,12 @@ VIBEXP_CLI_TEST_API_KEY="$key" make e2e
 make e2e-stack-down
 ```
 
+The Postgres pin (`pgvector/pgvector:pg17` in `e2e/docker-compose.yml`) tracks
+the platform's own `docker-compose.yml` and must move with it. This stack is the
+compatibility harness the platform's `release.yml` dispatches against every
+published image, so it only certifies anything while it runs the database
+version self-hosters actually deploy.
+
 `VIBEXP_E2E_IMAGE` overrides the platform image (default
 `ghcr.io/vibexp/vibexp:latest`; CI pins the latest release tag, and the
 workflow's `platform_image_tag` dispatch input overrides it — the escape hatch
