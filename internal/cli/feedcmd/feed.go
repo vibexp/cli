@@ -115,6 +115,6 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			}
 			return base + "/feeds", nil
 		},
-		Spec: output.TableSpec{Rows: ".feeds[]? // .items[]? // .data[]?", Columns: feedColumns},
+		Spec: output.TableSpec{Rows: resource.ListRows("feeds"), Columns: feedColumns},
 	})
 }

@@ -81,7 +81,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 				q.Set("owner_id", ownerID)
 				return base + "?" + q.Encode(), nil
 			},
-			Spec: output.TableSpec{Rows: ".attachments[]? // .items[]? // .data[]?", Columns: columns},
+			Spec: output.TableSpec{Rows: resource.ListRows("attachments"), Columns: columns},
 		}, page)
 	}
 	return cmd

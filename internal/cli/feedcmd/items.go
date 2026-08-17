@@ -30,7 +30,7 @@ func newItems(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comman
 				}
 				return base + "/feeds/" + feed + "/items", nil
 			},
-			Spec: output.TableSpec{Rows: ".items[]? // .feed_items[]? // .data[]?", Columns: itemColumns},
+			Spec: output.TableSpec{Rows: resource.ListRows("items", "feed_items"), Columns: itemColumns},
 		}, page)
 	}
 	return cmd

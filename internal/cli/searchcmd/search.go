@@ -70,7 +70,7 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 				return err
 			}
 			return resource.Render(cmd, rt, getenv, raw,
-				&output.TableSpec{Rows: ".results[]? // .items[]? // .data[]?", Columns: columns})
+				&output.TableSpec{Rows: resource.ListRows("results"), Columns: columns})
 		},
 	}
 	cmd.Flags().StringArrayVar(&types, "type", nil, "restrict to a resource type (repeatable): prompts|artifacts|blueprints|memories")

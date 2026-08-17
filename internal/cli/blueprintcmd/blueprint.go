@@ -125,7 +125,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			}
 			return path, nil
 		},
-		Spec:    output.TableSpec{Rows: ".blueprints[]? // .items[]? // .data[]?", Columns: columns},
+		Spec:    output.TableSpec{Rows: resource.ListRows("blueprints"), Columns: columns},
 		Filters: &resource.ListFilters{Metadata: true, Stale: true},
 	})
 }
