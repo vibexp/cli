@@ -25,27 +25,23 @@ var columns = []output.Column{
 	{Header: "SLUG", Path: ".slug"},
 	{Header: "TITLE", Path: ".title"},
 	{Header: "PROJECT", Path: ".project_id"},
-	{Header: "STALE", Path: ".freshness.status"},
+	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
 }
 
-// detailColumns drive the single-object views (get/create/update/delete). They
-// add the v0.11.0 freshness state, which the compact list view reduces to a
-// single flag. A resource carries `freshness` only while it is stale, so every
-// one of these cells is empty on a fresh resource.
-var detailColumns = []output.Column{
-	{Header: "SLUG", Path: ".slug"},
-	{Header: "TITLE", Path: ".title"},
-	{Header: "PROJECT", Path: ".project_id"},
-	{Header: "STALE", Path: ".freshness.status"},
-	{Header: "STALE_SINCE", Path: ".freshness.since"},
-	{Header: "STALE_REASON", Path: ".freshness.reason"},
-	// Guarded rather than a bare `| length`: in jq `null | length` is 0, so an
-	// unguarded path would render "0" on every fresh resource — reading as
-	// "evaluated, no rules matched" instead of "not stale".
-	{Header: "STALE_RULES", Path: `if .freshness then (.freshness.matched_rule_ids | length | tostring) else "" end`},
-	{Header: "UPDATED", Path: ".updated_at"},
-}
+// detailColumns drive the single-object views — get, and the create/update/
+// delete confirmations — which carry the full v0.11.0 freshness state the list
+// view reduces to one flag.
+var detailColumns = resource.WithFreshnessDetail(
+	[]output.Column{
+		{Header: "SLUG", Path: ".slug"},
+		{Header: "TITLE", Path: ".title"},
+		{Header: "PROJECT", Path: ".project_id"},
+	},
+	[]output.Column{
+		{Header: "UPDATED", Path: ".updated_at"},
+	},
+)
 
 // itemSpec renders a single artifact object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}

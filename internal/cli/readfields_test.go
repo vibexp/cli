@@ -3,6 +3,7 @@ package cli
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -265,9 +266,16 @@ func TestFreshnessDetailColumns(t *testing.T) {
 			if code != 0 {
 				t.Fatalf("get stale exit = %d, out=%q", code, out)
 			}
+			// Match whole TSV fields, not substrings: the fixture slugs contain
+			// "stale" and every timestamp contains "2", so strings.Contains
+			// would pass on output carrying no freshness at all.
+			staleRows := tsvRows(out)
+			if len(staleRows) != 1 {
+				t.Fatalf("got %d rows, want 1: %q", len(staleRows), out)
+			}
 			for _, want := range []string{"stale", "2026-08-01T00:00:00Z", "rule_run", "2"} {
-				if !strings.Contains(out, want) {
-					t.Errorf("stale detail missing %q: %q", want, out)
+				if !slices.Contains(staleRows[0], want) {
+					t.Errorf("stale detail has no %q cell: %v", want, staleRows[0])
 				}
 			}
 

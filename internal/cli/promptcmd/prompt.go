@@ -21,34 +21,30 @@ import (
 )
 
 // columns drive the list (multi-row) view — kept compact, so freshness is
-// reduced to a single STALE flag. Prompts
-// expose `name` (not `title`) and carry no variables field on the object —
-// placeholders live behind a separate endpoint that is out of scope here.
+// reduced to a single STALE flag. Prompts expose `name` (not `title`) and carry
+// no variables field on the object — placeholders live behind a separate
+// endpoint that is out of scope here.
 var columns = []output.Column{
 	{Header: "SLUG", Path: ".slug"},
 	{Header: "NAME", Path: ".name"},
 	{Header: "STATUS", Path: ".status"},
-	{Header: "STALE", Path: ".freshness.status"},
+	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
 }
 
-// detailColumns drive the single-object views (get/create/update/delete). They
-// add the v0.11.0 freshness state, which the compact list view reduces to a
-// single flag. A resource carries `freshness` only while it is stale, so every
-// one of these cells is empty on a fresh resource.
-var detailColumns = []output.Column{
-	{Header: "SLUG", Path: ".slug"},
-	{Header: "NAME", Path: ".name"},
-	{Header: "STATUS", Path: ".status"},
-	{Header: "STALE", Path: ".freshness.status"},
-	{Header: "STALE_SINCE", Path: ".freshness.since"},
-	{Header: "STALE_REASON", Path: ".freshness.reason"},
-	// Guarded rather than a bare `| length`: in jq `null | length` is 0, so an
-	// unguarded path would render "0" on every fresh resource — reading as
-	// "evaluated, no rules matched" instead of "not stale".
-	{Header: "STALE_RULES", Path: `if .freshness then (.freshness.matched_rule_ids | length | tostring) else "" end`},
-	{Header: "UPDATED", Path: ".updated_at"},
-}
+// detailColumns drive the single-object views — get, and the create/update/
+// delete confirmations — which carry the full v0.11.0 freshness state the list
+// view reduces to one flag.
+var detailColumns = resource.WithFreshnessDetail(
+	[]output.Column{
+		{Header: "SLUG", Path: ".slug"},
+		{Header: "NAME", Path: ".name"},
+		{Header: "STATUS", Path: ".status"},
+	},
+	[]output.Column{
+		{Header: "UPDATED", Path: ".updated_at"},
+	},
+)
 
 // itemSpec renders a single prompt object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}

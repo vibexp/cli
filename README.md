@@ -219,9 +219,12 @@ m-1      my-proj   active   stale   2026-02-01T00:00:00Z   an aging note
 m-2      my-proj   active           2026-08-14T00:00:00Z   a current note
 ```
 
-`get` adds the full state — `STALE_SINCE` (when it was *first* flagged, which is
-the age worth reading), `STALE_REASON` (`rule_run` · `accessed` · `edited`) and
-`STALE_RULES` (how many rules matched; the raw ids stay in `--format=json`).
+The single-object views add the full state — `STALE_SINCE` (when it was *first*
+flagged, which is the age worth reading), `STALE_REASON` (`rule_run` ·
+`accessed` · `edited`) and `STALE_RULES` (how many rules matched; the raw ids
+stay in `--format=json`). That is `get` **and** the `create`/`update`/`delete`
+confirmations, which share one detail layout — so a script doing
+`vibexp memory create … | cut -f4` sees the wider row too.
 
 A resource carries freshness data **only while it is stale**, so every one of
 these cells is empty on a fresh resource — an empty `STALE` cell means fresh,

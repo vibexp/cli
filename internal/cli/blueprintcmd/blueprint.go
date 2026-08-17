@@ -25,32 +25,28 @@ var columns = []output.Column{
 	{Header: "SLUG", Path: ".slug"},
 	{Header: "TITLE", Path: ".title"},
 	{Header: "TYPE", Path: ".type"},
-	{Header: "STALE", Path: ".freshness.status"},
+	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
 }
 
-// detailColumns drive the single-object views (get/create/update/delete), which
-// additionally surface the v0.8.0 file-fidelity fields — the canonical
-// repo-relative `path` and, for imported blueprints, the import provenance
-// (`source.repo` / short `source.commit_sha`) — and the v0.11.0 freshness
-// state. Absent fields render empty; a resource carries `freshness` only while
-// it is stale, so all four STALE cells are empty on a fresh blueprint.
-var detailColumns = []output.Column{
-	{Header: "SLUG", Path: ".slug"},
-	{Header: "TITLE", Path: ".title"},
-	{Header: "TYPE", Path: ".type"},
-	{Header: "PATH", Path: ".path"},
-	{Header: "SOURCE_REPO", Path: ".source.repo"},
-	{Header: "SOURCE_COMMIT", Path: ".source.commit_sha[0:12]"},
-	{Header: "STALE", Path: ".freshness.status"},
-	{Header: "STALE_SINCE", Path: ".freshness.since"},
-	{Header: "STALE_REASON", Path: ".freshness.reason"},
-	// Guarded rather than a bare `| length`: in jq `null | length` is 0, so an
-	// unguarded path would render "0" on every fresh resource — reading as
-	// "evaluated, no rules matched" instead of "not stale".
-	{Header: "STALE_RULES", Path: `if .freshness then (.freshness.matched_rule_ids | length | tostring) else "" end`},
-	{Header: "UPDATED", Path: ".updated_at"},
-}
+// detailColumns drive the single-object views — get, and the create/update/
+// delete confirmations — which additionally surface the v0.8.0 file-fidelity
+// fields (the canonical repo-relative `path` and, for imported blueprints, the
+// `source.repo` / short `source.commit_sha` provenance) and the full v0.11.0
+// freshness state the list view reduces to one flag.
+var detailColumns = resource.WithFreshnessDetail(
+	[]output.Column{
+		{Header: "SLUG", Path: ".slug"},
+		{Header: "TITLE", Path: ".title"},
+		{Header: "TYPE", Path: ".type"},
+		{Header: "PATH", Path: ".path"},
+		{Header: "SOURCE_REPO", Path: ".source.repo"},
+		{Header: "SOURCE_COMMIT", Path: ".source.commit_sha[0:12]"},
+	},
+	[]output.Column{
+		{Header: "UPDATED", Path: ".updated_at"},
+	},
+)
 
 // itemSpec renders a single blueprint object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
