@@ -68,9 +68,13 @@ omitted, so the server applies its own default grant. The retry reuses the same
 listener, port, redirect URI and `client_id` (the redirect URI is pinned by the
 registration) but generates a fresh `state` nonce and PKCE pair, so a late
 callback from the first attempt fails closed as a state mismatch. A stderr
-notice precedes the second browser open, and the scopes actually used are what
-get persisted to `credentials.json`. Any other callback error fails on the
+notice precedes the second browser open. Any other callback error fails on the
 first attempt.
+
+`credentials.json` records the scopes the successful attempt actually carried,
+not the ones negotiated — so after a retry the entry stores none. That is what
+makes the next login register a fresh client instead of replaying an
+authorization request this server is known to refuse.
 
 ## Global flags & precedence
 

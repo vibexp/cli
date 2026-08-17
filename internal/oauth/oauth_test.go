@@ -545,6 +545,26 @@ func TestFlowNoRetryOnOtherErrors(t *testing.T) {
 	}
 }
 
+// TestFlowNoRetryWithoutScopes guards the other half of the retry condition:
+// with nothing to drop, a second attempt would be byte-identical to the first,
+// so it must not cost the user another browser window.
+func TestFlowNoRetryWithoutScopes(t *testing.T) {
+	srv, records := retryAS(t, func(string) string { return "invalid_scope" })
+	var notices []string
+	flow := retryFlow(t, srv, &notices)
+	flow.Scopes = nil
+
+	if _, err := flow.Run(context.Background()); err == nil {
+		t.Fatal("err = nil, want invalid_scope")
+	}
+	if n := len(records()); n != 1 {
+		t.Errorf("/authorize hits = %d, want 1 (nothing to drop, so no retry)", n)
+	}
+	if len(notices) != 0 {
+		t.Errorf("notices = %v, want none", notices)
+	}
+}
+
 // TestFlowRetryRejectsStaleCallback proves the fresh per-attempt state nonce
 // fails a callback from the superseded first attempt closed, rather than
 // letting it resolve the retry.
@@ -577,7 +597,7 @@ func TestFlowRetryRejectsStaleCallback(t *testing.T) {
 			return nil
 		}
 		// On the retry, deliver a callback carrying the *first* attempt's
-		// state before the good one.
+		// state instead of the good one.
 		go func() {
 			stale := u.Query().Get("redirect_uri") + "?code=stolen&state=" + url.QueryEscape(firstState)
 			resp, _ := srv.Client().Get(stale)

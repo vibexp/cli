@@ -27,9 +27,15 @@ type Entry struct {
 	AccessToken  string    `json:"access_token,omitempty"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at,omitempty"`
-	// Scopes are the scopes declared when ClientID was registered (RFC 7591
-	// scope). Browser login reuses a stored client only when its scopes cover
-	// the scopes it needs to request; older entries have none and re-register.
+	// Scopes are the scopes the last successful authorization request for
+	// ClientID actually carried — normally the ones declared at RFC 7591
+	// registration, but empty when the authorization server refused them and
+	// the login only succeeded on the no-scope retry (issue #37). Browser login
+	// reuses a stored client only when its scopes cover the scopes it needs to
+	// request, so an entry recording a refusal deliberately forces a fresh
+	// registration next time rather than replaying a request the server is
+	// known to reject. Older entries have none and re-register for the same
+	// reason.
 	Scopes []string `json:"scopes,omitempty"`
 }
 

@@ -158,9 +158,12 @@ func resolveScopeOverride(flagScopes []string, getenv config.Getenv) []string {
 
 // reusableClientID returns the stored OAuth client_id for a context, but only
 // when it exists and its recorded scopes cover want; otherwise "" (register a
-// fresh client). A stored client whose declared scopes do not cover what we
-// need would be barred from those scopes by a scope-enforcing authorization
-// server, so it must not be reused.
+// fresh client). A stored client whose last authorization request did not carry
+// what we need was either registered without those scopes or refused them by a
+// scope-enforcing authorization server, so it must not be reused. A login that
+// only got through on the no-scope retry therefore re-registers on the next
+// login — deliberately, since replaying the refused request would just cost the
+// user another rejected browser round trip.
 func reusableClientID(store *cred.Store, contextName string, want []string) string {
 	entry, err := store.Get(contextName)
 	if err != nil || entry == nil || entry.ClientID == "" {
