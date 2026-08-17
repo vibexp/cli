@@ -25,7 +25,7 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 			return "/api/v1/" + team + "/projects", nil
 		},
 		Spec: output.TableSpec{
-			Rows: ".projects[]? // .items[]? // .data[]?",
+			Rows: resource.ListRows("projects"),
 			Columns: []output.Column{
 				{Header: "SLUG", Path: ".slug"},
 				{Header: "NAME", Path: ".name"},

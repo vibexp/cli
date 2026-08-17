@@ -20,7 +20,7 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 		// Membership is summarized via permissions (never role — team access is
 		// gated on the permissions array).
 		Spec: output.TableSpec{
-			Rows: ".teams[]? // .items[]? // .data[]?",
+			Rows: resource.ListRows("teams"),
 			Columns: []output.Column{
 				{Header: "SLUG", Path: ".slug"},
 				{Header: "NAME", Path: ".name"},

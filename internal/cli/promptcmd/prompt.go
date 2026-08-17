@@ -49,17 +49,12 @@ var detailColumns = resource.WithFreshnessDetail(
 // itemSpec renders a single prompt object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
-// listSpec renders the list view. listPrompts is the only list endpoint that
-// nests its array under `data` ({"data":{"prompts":[…]}}), hence `.data.prompts[]?`.
-//
-// Note the deliberate absence of the bare `.data[]?` fallback the other nouns
-// carry: `//` falls through whenever its left side yields *no* values, so an
-// empty prompts array reached that fallback, which iterates an *object's*
-// values and turned the envelope's own fields (page, per_page, total_count, …)
-// into blank rows. Every alternative here indexes a named key, so an
-// unrecognised shape renders zero rows rather than garbage (#72).
+// listSpec renders the list view. listPrompts is the one endpoint that nests
+// its array under an envelope ({"data":{"prompts":[…]}}), which resource.ListRows
+// handles alongside the top-level shape — see its doc comment for why every
+// alternative there indexes a named key (#72, #74).
 var listSpec = output.TableSpec{
-	Rows:    ".prompts[]? // .data.prompts[]? // .items[]? // .data.items[]?",
+	Rows:    resource.ListRows("prompts"),
 	Columns: columns,
 }
 

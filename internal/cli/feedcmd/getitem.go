@@ -57,7 +57,7 @@ func newGetItem(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comm
 			}
 			cmd.PrintErrln("\nReplies:")
 			return resource.Render(cmd, rt, getenv, replies,
-				&output.TableSpec{Rows: ".replies[]? // .items[]? // .data[]?", Columns: replyColumns})
+				&output.TableSpec{Rows: resource.ListRows("replies"), Columns: replyColumns})
 		},
 	}
 }

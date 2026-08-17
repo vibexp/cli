@@ -36,7 +36,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 				q.Set("resource_id", resID)
 				return base + "?" + q.Encode(), nil
 			},
-			Spec: output.TableSpec{Rows: ".relations[]? // .items[]? // .data[]?", Columns: listColumns},
+			Spec: output.TableSpec{Rows: resource.ListRows("relations"), Columns: listColumns},
 		}
 		return resource.RunList(cmd, resolve, getenv, cfg, page)
 	}
