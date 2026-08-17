@@ -184,6 +184,30 @@ All three honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
 pagination flags `--limit` / `--page` / `--offset`. Adding a new resource
 command is mechanical — see [docs/adding-commands.md](docs/adding-commands.md).
 
+### Filtering lists
+
+`list` filters are applied **server-side** and compose with each other and with
+pagination:
+
+```bash
+vibexp memory list --stale                          # flagged stale by the team's freshness rules
+vibexp prompt list --stale --format=json --jq '.prompts[].slug'
+vibexp artifact list --stale --project my-proj      # composes with project scope
+
+vibexp memory list --tags go --tags cli             # tag filter (values OR)
+vibexp memory list --metadata env=prod --tags go    # keys AND, values within a key OR
+vibexp blueprint list --metadata spec.type=api --stale --limit 10
+
+# What's gone stale this sprint, as TSV for a script?
+vibexp memory list --stale --limit 100 | cut -f1,2
+```
+
+`--stale` is available on `memory`, `prompt`, `blueprint` and `artifact` list.
+`--metadata` is available everywhere except `prompt list` (the endpoint has no
+metadata filter, so the flag is deliberately not offered rather than silently
+ignored); `--tags` is memories-only. Discover what you can filter on with
+`vibexp metadata keys` / `vibexp metadata values`.
+
 ### Memories
 
 Full CRUD over memories (team-scoped; content via `--body-file`):

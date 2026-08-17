@@ -59,16 +59,30 @@ under `--format=json`; the `TableSpec` only drives table/TSV.
    expression, piped TSV, and pagination flags on real data. Never print or
    commit staging URLs/keys.
 
-## Metadata filtering on a list command
+## Server-side filtering on a list command
 
-When the endpoint accepts the platform's `metadata` JSON containment param
-(platform v0.9.0+), set `Filters` on the `ListConfig` — the shared builder
-binds `--metadata key=value` (repeatable) and merges it into the query:
+Set `Filters` on the `ListConfig` and opt into exactly the filters the endpoint
+accepts. The shared builder binds those flags and merges them into the query;
+filters compose with each other and with pagination.
 
 ```go
-Filters: &resource.MetadataFilter{},          // --metadata only
-Filters: &resource.MetadataFilter{Tags: true}, // also --tags (memories: metadata.tags)
+Filters: &resource.ListFilters{Stale: true},                              // prompts
+Filters: &resource.ListFilters{Metadata: true, Stale: true},              // artifacts, blueprints
+Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true},  // memories
 ```
+
+| Field | Flag | Query param | Since |
+| --- | --- | --- | --- |
+| `Metadata` | `--metadata key=value` (repeatable) | `metadata=<JSON containment>` — keys AND, values within a key OR | platform v0.9.0 |
+| `Tags` | `--tags <tag>` (repeatable) | folded into `metadata.tags` — memories only | platform v0.9.0 |
+| `Stale` | `--stale` | `freshness=stale` | platform v0.11.0 |
+
+**Opt in only to what the endpoint takes.** `listPrompts` has no `metadata`
+param, so `promptcmd` sets `Stale` alone — binding `--metadata` there would let
+a user narrow a list and receive the unfiltered one, which reads like a real
+answer. The same reasoning is why `freshness` is a strict server-side enum
+(anything but `stale` is a 400) and why `--stale` is a bool rather than a
+`--freshness=<value>` string the user could get wrong.
 
 Discovery for filter authors lives in `vibexp metadata keys|values --type
 <artifacts|blueprints|memories>` (`internal/cli/metadatacmd`).

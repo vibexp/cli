@@ -90,6 +90,6 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			return path, nil
 		},
 		Spec:    output.TableSpec{Rows: ".memories[]? // .items[]? // .data[]?", Columns: columns},
-		Filters: &resource.MetadataFilter{Tags: true},
+		Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true},
 	})
 }
