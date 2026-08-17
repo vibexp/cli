@@ -11,21 +11,57 @@ by the foundation (issue #3). Every later command plugs into this skeleton.
 ## Package layout
 
 ```
-cmd/vibexp/main.go          entrypoint; runs the root command, maps errors -> exit codes
+cmd/vibexp/                 entrypoint; runs the root command, maps errors -> exit codes
+cmd/docgen/                 BUILD-TIME ONLY: generates the shell completions and man
+                            pages bundled into release archives. Never linked into the
+                            binary, which is what keeps `go install .../cmd/vibexp`
+                            free of the cobra/doc + go-md2man dependencies.
+
 internal/cli/               cobra command tree
-  root.go                   root command, global flags, persistent pre-run
-  context.go                runtime/logger stashed on context.Context
-  configcmd/                config context subcommands
+  root.go                   root command, global flags, persistent pre-run. The only
+                            non-test .go file at this level.
+  resource/                 shared list/pagination/confirm helpers every curated noun
+                            builds on (see docs/adding-commands.md)
+  apicmd/                   vibexp api <METHOD> <path> — raw passthrough for everything
+                            the curated nouns do not cover
+  artifactcmd/              vibexp artifact list|create|get|update|delete
+  attachmentcmd/            vibexp attachment list|upload|delete
+  authcmd/                  vibexp auth login|logout|status (API key + OAuth PKCE)
+  blueprintcmd/             vibexp blueprint list|create|get|update|delete
+  configcmd/                vibexp config set-context|use-context|get-contexts|
+                            current-context
+  feedcmd/                  vibexp feed list|post|items|get-item|reply
+  memorycmd/                vibexp memory list|create|get|update|delete
+  metadatacmd/              vibexp metadata keys|values — discovery backing the
+                            --metadata key=value list filter
+  projectcmd/               vibexp project list
+  promptcmd/                vibexp prompt list|create|get|update|delete|render
+  relationcmd/              vibexp relations list|create|confirm|delete|seed — the
+                            plural noun, added with platform v0.8.0 relations
+  searchcmd/                vibexp search <query>
+  teamcmd/                  vibexp team list
+  updatecmd/                vibexp update (self-replace)
+  usercmd/                  vibexp whoami
   versioncmd/               vibexp version
+
+internal/api/               client factory over api-client-go: Doer, RFC 7807 mapper,
+                            team/project resolution, multipart streamer (see below)
+internal/clictx/            carries the resolved runtime + logger on a context.Context
+                            so command packages never import the root cli package —
+                            that import would be a cycle
 internal/config/            named-context store (koanf) + precedence resolution
-internal/logging/           always-on JSON-lines file logger + rotation + redaction
+internal/cred/              credential store (0600 credentials.json, atomic writes)
 internal/exitcode/          exit-code constants + typed CodedError
+internal/logging/           always-on JSON-lines file logger + rotation + redaction
+internal/oauth/             PKCE flow: discovery, DCR, callback server, refresh, flock
+internal/output/            renderer: table/TSV/json/yaml, --jq, TTY detection
+internal/update/            version check, install-source provenance, self-update
 internal/version/           ldflags-injected build metadata
 ```
 
-Later issues add: `internal/cred/`, `internal/oauth/`, `internal/api/`,
-`internal/output/`, `internal/update/`, and more command packages under
-`internal/cli/`.
+Keep this block matched to the tree — `ls -d cmd/*/ internal/*/ internal/cli/*/`
+should turn up nothing that is not listed here, and nothing here that is not on
+disk. A PR that adds a package updates this block in the same PR.
 
 ## Client layer (`internal/api`)
 
