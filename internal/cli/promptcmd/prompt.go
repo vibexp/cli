@@ -49,6 +49,20 @@ var detailColumns = resource.WithFreshnessDetail(
 // itemSpec renders a single prompt object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 
+// listSpec renders the list view. listPrompts is the only list endpoint that
+// nests its array under `data` ({"data":{"prompts":[…]}}), hence `.data.prompts[]?`.
+//
+// Note the deliberate absence of the bare `.data[]?` fallback the other nouns
+// carry: `//` falls through whenever its left side yields *no* values, so an
+// empty prompts array reached that fallback, which iterates an *object's*
+// values and turned the envelope's own fields (page, per_page, total_count, …)
+// into blank rows. Every alternative here indexes a named key, so an
+// unrecognised shape renders zero rows rather than garbage (#72).
+var listSpec = output.TableSpec{
+	Rows:    ".prompts[]? // .data.prompts[]? // .items[]? // .data.items[]?",
+	Columns: columns,
+}
+
 // New builds the `prompt` command group.
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	cmd := &cobra.Command{
@@ -119,7 +133,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			}
 			return path, nil
 		},
-		Spec: output.TableSpec{Rows: ".prompts[]? // .items[]? // .data[]?", Columns: columns},
+		Spec: listSpec,
 		// Stale only: listPrompts takes freshness but has no metadata param, so
 		// binding --metadata here would silently return the unfiltered list.
 		Filters: &resource.ListFilters{Stale: true},
