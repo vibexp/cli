@@ -72,7 +72,10 @@ cmd/docgen/               BUILD-TIME ONLY: generates shell completions + man pag
                           for release archives. Never linked into the binary, which
                           keeps `go install .../cmd/vibexp` free of cobra/doc deps.
 internal/cli/             cobra commands: root.go + one package per noun
-  authcmd/ configcmd/ apicmd/ resource/ (shared list/pagination/confirm helpers)
+  authcmd/ configcmd/ apicmd/ resource/ (shared list/pagination/confirm helpers,
+                          plus cross-noun column definitions — a read-time field
+                          every resource carries is declared once here, e.g.
+                          FreshnessColumn/WithFreshnessDetail, never per noun)
   usercmd/ teamcmd/ projectcmd/ memorycmd/ metadatacmd/ blueprintcmd/ promptcmd/
   artifactcmd/ feedcmd/ searchcmd/ attachmentcmd/ relationcmd/ updatecmd/ versioncmd/
 internal/clictx/          carries the resolved runtime + logger on context.Context so
