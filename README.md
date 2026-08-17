@@ -203,10 +203,10 @@ vibexp memory list --stale --limit 100 | cut -f1,2
 ```
 
 `--stale` is available on `memory`, `prompt`, `blueprint` and `artifact` list.
-`--metadata` is available everywhere except `prompt list` (the endpoint has no
-metadata filter, so the flag is deliberately not offered rather than silently
-ignored); `--tags` is memories-only. Discover what you can filter on with
-`vibexp metadata keys` / `vibexp metadata values`.
+`--metadata` is available on the other three but **not** `prompt list` (that
+endpoint has no metadata filter, so the flag is deliberately not offered rather
+than silently ignored); `--tags` is memories-only. Discover what you can filter
+on with `vibexp metadata keys` / `vibexp metadata values`.
 
 ### Memories
 

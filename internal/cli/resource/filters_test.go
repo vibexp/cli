@@ -9,7 +9,7 @@ import (
 func TestListFiltersQueryMergesAndSorts(t *testing.T) {
 	f := &ListFilters{Tags: true}
 	f.pairs = []string{"env=prod", "env=staging", "team=core"}
-	f.tags = []string{"go"}
+	f.tagVals = []string{"go"}
 	got, err := f.Query()
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestListFiltersApplyToPathStale(t *testing.T) {
 	}{
 		{
 			name:  "stale alone",
-			setup: func(f *ListFilters) { f.stale = true },
+			setup: func(f *ListFilters) { f.staleSet = true },
 			path:  "/api/v1/t/memories",
 			want:  "/api/v1/t/memories?freshness=stale",
 		},
@@ -85,9 +85,9 @@ func TestListFiltersApplyToPathStale(t *testing.T) {
 		{
 			name: "stale composes with metadata, tags and pagination",
 			setup: func(f *ListFilters) {
-				f.stale = true
+				f.staleSet = true
 				f.pairs = []string{"env=prod"}
-				f.tags = []string{"go"}
+				f.tagVals = []string{"go"}
 			},
 			path: "/api/v1/t/memories?limit=10",
 			want: "/api/v1/t/memories?freshness=stale" +
@@ -95,7 +95,7 @@ func TestListFiltersApplyToPathStale(t *testing.T) {
 		},
 		{
 			name:  "stale merges into a project-scoped path",
-			setup: func(f *ListFilters) { f.stale = true },
+			setup: func(f *ListFilters) { f.staleSet = true },
 			path:  "/api/v1/t/artifacts?project_id=p-1",
 			want:  "/api/v1/t/artifacts?freshness=stale&project_id=p-1",
 		},
@@ -152,6 +152,13 @@ func TestAddFilterFlagsBindsOnlyOptedIn(t *testing.T) {
 			name:    "memories: everything",
 			filters: ListFilters{Metadata: true, Tags: true, Stale: true},
 			want:    map[string]bool{"stale": true, "metadata": true, "tags": true},
+		},
+		{
+			// --tags is sugar over the metadata containment param, so without
+			// Metadata there is nothing to hang it on and it must not bind.
+			name:    "tags without metadata binds nothing",
+			filters: ListFilters{Tags: true, Stale: true},
+			want:    map[string]bool{"stale": true, "metadata": false, "tags": false},
 		},
 	}
 	for _, tt := range tests {

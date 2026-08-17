@@ -26,14 +26,18 @@ type ListFilters struct {
 	// Metadata exposes --metadata (every noun whose endpoint takes it — not
 	// prompts, whose listPrompts has no metadata param).
 	Metadata bool
-	// Tags exposes --tags (memory list only).
+	// Tags exposes --tags (memory list only). Implies Metadata: --tags is sugar
+	// over the same containment param, so it cannot be offered on an endpoint
+	// that does not accept metadata.
 	Tags bool
 	// Stale exposes --stale.
 	Stale bool
 
-	pairs []string
-	tags  []string
-	stale bool
+	// Flag values. Named apart from the opt-in fields above so a slip between
+	// the two does not compile.
+	pairs    []string
+	tagVals  []string
+	staleSet bool
 }
 
 // AddFilterFlags binds the flags f opted into onto cmd.
@@ -42,12 +46,14 @@ func AddFilterFlags(cmd *cobra.Command, f *ListFilters) {
 		cmd.Flags().StringArrayVar(&f.pairs, "metadata", nil,
 			"filter by metadata as key=value (repeatable; keys AND, values within a key OR)")
 	}
-	if f.Tags {
-		cmd.Flags().StringArrayVar(&f.tags, "tags", nil,
+	// Tags implies Metadata — see the field doc. Binding --tags without it
+	// would send a metadata param to an endpoint declared not to accept one.
+	if f.Tags && f.Metadata {
+		cmd.Flags().StringArrayVar(&f.tagVals, "tags", nil,
 			"filter by tag (repeatable; sugar for metadata.tags=<tag>)")
 	}
 	if f.Stale {
-		cmd.Flags().BoolVar(&f.stale, "stale", false,
+		cmd.Flags().BoolVar(&f.staleSet, "stale", false,
 			"only resources the team's freshness rules have flagged as stale")
 	}
 }
@@ -64,8 +70,8 @@ func (f *ListFilters) Query() (string, error) {
 		}
 		merged[k] = append(merged[k], v)
 	}
-	if len(f.tags) > 0 {
-		merged["tags"] = append(merged["tags"], f.tags...)
+	if len(f.tagVals) > 0 {
+		merged["tags"] = append(merged["tags"], f.tagVals...)
 	}
 	if len(merged) == 0 {
 		return "", nil
@@ -99,7 +105,7 @@ func (f *ListFilters) ApplyToPath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if meta == "" && !f.stale {
+	if meta == "" && !f.staleSet {
 		return path, nil
 	}
 	u, err := url.Parse(path)
@@ -110,7 +116,7 @@ func (f *ListFilters) ApplyToPath(path string) (string, error) {
 	if meta != "" {
 		q.Set("metadata", meta)
 	}
-	if f.stale {
+	if f.staleSet {
 		// The server models this as a single-member enum so a future state can
 		// be added without a type change; anything but "stale" is a 400.
 		q.Set("freshness", "stale")
