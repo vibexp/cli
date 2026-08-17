@@ -27,7 +27,10 @@ anything; go to the code for detail, not to issue bodies.
   memories, blueprints, prompts (incl. `prompt render`), artifacts, feeds, search,
   attachments, metadata (`vibexp metadata keys|values` — discovery backing the
   `--metadata key=value` list filter on memories/artifacts/blueprints; memory list
-  also has `--tags`), relations (`vibexp relations` — note the plural, the only one),
+  also has `--tags`; all four of memory/prompt/blueprint/artifact `list` take
+  `--stale` → `freshness=stale`, and `prompt list` takes **only** that one, since
+  `listPrompts` has no metadata param), relations (`vibexp relations` — note the
+  plural, the only one),
   whoami/teams/projects — plus `vibexp api <METHOD> <path>` raw passthrough for
   everything else. `vibexp --help` is the authoritative surface.
 - **Contexts:** multi-context (kubectl-style) in `~/.vibexp/config.yaml`; credentials

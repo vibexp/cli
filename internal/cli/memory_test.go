@@ -226,3 +226,44 @@ func TestMemoryListMetadataInvalidPairExit2(t *testing.T) {
 		t.Fatalf("list exit = %d, want %d", code, exitcode.UsageErr)
 	}
 }
+
+// TestMemoryListStaleFilter covers the v0.11.0 freshness filter composing with
+// every other filter memory list carries.
+func TestMemoryListStaleFilter(t *testing.T) {
+	var cap memoryCapture
+	srv := memoryServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
+		"memory", "list", "--stale", "--tags", "go", "--metadata", "env=prod", "--limit", "10")
+	if code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	if got := cap.listQuery.Get("freshness"); got != "stale" {
+		t.Errorf("freshness param = %q, want stale", got)
+	}
+	if got := cap.listQuery.Get("metadata"); got != `{"env":["prod"],"tags":["go"]}` {
+		t.Errorf("metadata param = %q", got)
+	}
+	if got := cap.listQuery.Get("limit"); got != "10" {
+		t.Errorf("limit = %q, want 10", got)
+	}
+}
+
+// TestMemoryListWithoutStaleSendsNoFreshness guards against the filter leaking
+// an empty param onto an unfiltered list — the server 400s on anything but
+// "stale", so freshness= would break every plain list.
+func TestMemoryListWithoutStaleSendsNoFreshness(t *testing.T) {
+	var cap memoryCapture
+	srv := memoryServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "memory", "list"); code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	if _, ok := cap.listQuery["freshness"]; ok {
+		t.Errorf("freshness param present on an unfiltered list: %v", cap.listQuery)
+	}
+}

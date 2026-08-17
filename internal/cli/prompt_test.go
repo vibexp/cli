@@ -309,3 +309,37 @@ func TestPromptRenderInvalidVar(t *testing.T) {
 		t.Error("must not call render with an invalid --var")
 	}
 }
+
+// TestPromptListStaleFilter covers the one filter listPrompts accepts.
+func TestPromptListStaleFilter(t *testing.T) {
+	var cap promptCapture
+	srv := promptServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "prompt", "list", "--stale")
+	if code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	if got := cap.listQuery.Get("freshness"); got != "stale" {
+		t.Errorf("freshness param = %q, want stale", got)
+	}
+}
+
+// TestPromptListRejectsMetadataFlag is the guard that we never bind a filter
+// the endpoint ignores: listPrompts has no metadata param, so --metadata must
+// fail as an unknown flag rather than silently returning the full list.
+func TestPromptListRejectsMetadataFlag(t *testing.T) {
+	var cap promptCapture
+	srv := promptServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "prompt", "list", "--metadata", "env=prod")
+	if code != exitcode.UsageErr {
+		t.Fatalf("exit = %d, want %d (unknown flag)", code, exitcode.UsageErr)
+	}
+	if !strings.Contains(errOut, "unknown flag") {
+		t.Errorf("stderr = %q, want an unknown-flag error", errOut)
+	}
+}

@@ -207,3 +207,24 @@ func TestBlueprintListMetadataFilter(t *testing.T) {
 		t.Errorf("metadata param = %q", cap.listQuery.Get("metadata"))
 	}
 }
+
+// TestBlueprintListStaleFilter asserts the freshness filter merges into a path
+// that already carries project scope.
+func TestBlueprintListStaleFilter(t *testing.T) {
+	var cap blueprintCapture
+	srv := blueprintServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "p-9",
+		"blueprint", "list", "--stale")
+	if code != 0 {
+		t.Fatalf("list exit = %d", code)
+	}
+	if got := cap.listQuery.Get("freshness"); got != "stale" {
+		t.Errorf("freshness param = %q, want stale", got)
+	}
+	if got := cap.listQuery.Get("project_id"); got != "p-9" {
+		t.Errorf("project_id = %q, want p-9 (the filter must not drop it)", got)
+	}
+}
