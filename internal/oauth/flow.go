@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,6 +18,18 @@ const defaultCallbackTimeout = 3 * time.Minute
 // BrowserOpener opens a URL in the user's browser. Injectable for tests and for
 // the login command's manual-URL fallback.
 type BrowserOpener func(rawURL string) error
+
+// AuthzError is an RFC 6749 §4.1.2.1 error delivered on the authorization
+// callback (`?error=…&error_description=…`). Callers branch on Code; the
+// message keeps the historical wording.
+type AuthzError struct {
+	Code        string
+	Description string
+}
+
+func (e *AuthzError) Error() string {
+	return fmt.Sprintf("authorization failed: %s %s", e.Code, e.Description)
+}
 
 // Listen binds a single-use loopback callback listener on a random port and
 // returns it along with the redirect URI to register and authorize against.
@@ -42,6 +55,29 @@ type Flow struct {
 	OpenBrowser BrowserOpener
 	Listener    net.Listener
 	Timeout     time.Duration
+
+	// Notify, when set, receives short user-facing notices — currently only the
+	// warning before the no-scope retry reopens the browser. Nil is a no-op, so
+	// the package stays usable without a printer.
+	Notify func(string)
+
+	// UsedScopes are the scopes on the authorization request that succeeded:
+	// Scopes normally, nil when the no-scope retry is what worked. Only
+	// meaningful after Run returns without error; callers persist this rather
+	// than Scopes so the next login reasons about what the server accepted.
+	UsedScopes []string
+
+	// cur is the in-flight attempt. The callback server outlives an individual
+	// attempt, so the handler reads the state nonce and result channel from
+	// here rather than closing over one attempt's values.
+	cur atomic.Pointer[attempt]
+}
+
+// attempt is the per-authorization-request state the long-lived callback
+// handler needs.
+type attempt struct {
+	state   string
+	results chan callbackResult
 }
 
 type callbackResult struct {
@@ -51,21 +87,15 @@ type callbackResult struct {
 
 // Run drives the browser authorization and exchanges the returned code for
 // tokens. It always closes the listener.
+//
+// An `invalid_scope` callback gets exactly one retry with the scope parameter
+// omitted, letting the authorization server apply its own default grant. The
+// retry reuses the same listener, port, redirect URI and client_id — the
+// redirect URI is pinned by the dynamic client registration, so re-binding
+// would mean re-registering — but generates a fresh state nonce and PKCE pair.
 func (f *Flow) Run(ctx context.Context) (*Token, error) {
-	pkce, err := GeneratePKCE()
-	if err != nil {
-		return nil, err
-	}
-	state, err := GenerateState()
-	if err != nil {
-		return nil, err
-	}
-
-	authURL := f.authorizeURL(pkce, state)
-
-	results := make(chan callbackResult, 1)
 	srv := &http.Server{
-		Handler:           callbackHandler(state, results),
+		Handler:           f.callbackHandler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() { _ = srv.Serve(f.Listener) }()
@@ -75,7 +105,46 @@ func (f *Flow) Run(ctx context.Context) (*Token, error) {
 		_ = srv.Shutdown(shutCtx)
 	}()
 
-	if err := f.OpenBrowser(authURL); err != nil {
+	tok, err := f.runOnce(ctx, f.Scopes)
+	if err == nil {
+		f.UsedScopes = f.Scopes
+		return tok, nil
+	}
+
+	// Retry only the one failure a retry can fix, and only when there is a
+	// scope to drop.
+	var authz *AuthzError
+	if !errors.As(err, &authz) || authz.Code != "invalid_scope" || len(f.Scopes) == 0 {
+		return nil, err
+	}
+
+	f.notify(fmt.Sprintf("The authorization server rejected the requested scope %q; retrying without it — a second browser window will open.",
+		strings.Join(f.Scopes, " ")))
+
+	tok, err = f.runOnce(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	f.UsedScopes = nil
+	return tok, nil
+}
+
+// runOnce performs a single authorization attempt against an already-running
+// callback server: fresh PKCE and state, browser open, wait, code exchange.
+func (f *Flow) runOnce(ctx context.Context, scopes []string) (*Token, error) {
+	pkce, err := GeneratePKCE()
+	if err != nil {
+		return nil, err
+	}
+	state, err := GenerateState()
+	if err != nil {
+		return nil, err
+	}
+
+	results := make(chan callbackResult, 1)
+	f.cur.Store(&attempt{state: state, results: results})
+
+	if err := f.OpenBrowser(f.authorizeURL(pkce, state, scopes)); err != nil {
 		return nil, fmt.Errorf("open browser: %w", err)
 	}
 
@@ -98,8 +167,16 @@ func (f *Flow) Run(ctx context.Context) (*Token, error) {
 	}
 }
 
-// authorizeURL builds the RFC 6749 / RFC 8707 authorization request URL.
-func (f *Flow) authorizeURL(pkce PKCE, state string) string {
+// notify delivers a user-facing notice when a printer is wired up.
+func (f *Flow) notify(msg string) {
+	if f.Notify != nil {
+		f.Notify(msg)
+	}
+}
+
+// authorizeURL builds the RFC 6749 / RFC 8707 authorization request URL. An
+// empty scopes slice omits the scope parameter entirely.
+func (f *Flow) authorizeURL(pkce PKCE, state string, scopes []string) string {
 	q := url.Values{
 		"response_type":         {"code"},
 		"client_id":             {f.ClientID},
@@ -108,8 +185,8 @@ func (f *Flow) authorizeURL(pkce PKCE, state string) string {
 		"code_challenge":        {pkce.Challenge},
 		"code_challenge_method": {pkce.Method},
 	}
-	if len(f.Scopes) > 0 {
-		q.Set("scope", strings.Join(f.Scopes, " "))
+	if len(scopes) > 0 {
+		q.Set("scope", strings.Join(scopes, " "))
 	}
 	if f.Resource != "" {
 		q.Set("resource", f.Resource)
@@ -121,29 +198,43 @@ func (f *Flow) authorizeURL(pkce PKCE, state string) string {
 	return f.Meta.AuthorizationEndpoint + sep + q.Encode()
 }
 
-// callbackHandler returns the single-use loopback handler that captures the
-// authorization result.
-func callbackHandler(wantState string, results chan<- callbackResult) http.Handler {
+// callbackHandler returns the loopback handler that captures the authorization
+// result of whichever attempt is currently in flight.
+func (f *Flow) callbackHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		cur := f.cur.Load()
+		if cur == nil { // no attempt in flight; nothing to resolve
+			http.NotFound(w, r)
+			return
+		}
 		q := r.URL.Query()
+		// A late callback from a superseded attempt carries that attempt's
+		// state and must not resolve this one. Only enforced when the server
+		// echoed a state: not every server echoes it on the error path, and
+		// hiding a real error behind "state mismatch" would be worse.
+		if s := q.Get("state"); s != "" && s != cur.state {
+			finish(w, cur.results, "", errors.New("state mismatch on callback (possible CSRF)"),
+				"Authorization could not be verified. You may close this window.")
+			return
+		}
 		if e := q.Get("error"); e != "" {
-			finish(w, results, "", fmt.Errorf("authorization failed: %s %s", e, q.Get("error_description")),
+			finish(w, cur.results, "", &AuthzError{Code: e, Description: q.Get("error_description")},
 				"Authorization failed. You may close this window and return to the terminal.")
 			return
 		}
-		if q.Get("state") != wantState {
-			finish(w, results, "", errors.New("state mismatch on callback (possible CSRF)"),
+		if q.Get("state") != cur.state {
+			finish(w, cur.results, "", errors.New("state mismatch on callback (possible CSRF)"),
 				"Authorization could not be verified. You may close this window.")
 			return
 		}
 		code := q.Get("code")
 		if code == "" {
-			finish(w, results, "", errors.New("no authorization code in callback"),
+			finish(w, cur.results, "", errors.New("no authorization code in callback"),
 				"Authorization failed. You may close this window.")
 			return
 		}
-		finish(w, results, code, nil,
+		finish(w, cur.results, code, nil,
 			"Login successful. You may close this window and return to the terminal.")
 	})
 	return mux

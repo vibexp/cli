@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -320,13 +321,20 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 		t.Errorf("no access token from flow")
 	}
 
-	// Control: a client registered without the scope is barred — proving the
-	// server truly enforces per-client scopes and the DCR declaration is why
-	// the flow above succeeded.
+	if len(flow.UsedScopes) != 1 || flow.UsedScopes[0] != "mcp" {
+		t.Errorf("UsedScopes = %v, want [mcp] (the first attempt should have succeeded)", flow.UsedScopes)
+	}
+
+	// Control: a client registered without the scope is barred from it —
+	// proving the server truly enforces per-client scopes and the DCR
+	// declaration is why the flow above succeeded on its first attempt. Since
+	// issue #37 the flow no longer dies there: the invalid_scope callback
+	// triggers the one-shot no-scope retry, which this AS admits.
 	mu.Lock()
 	granted["client-unscoped"] = nil
 	mu.Unlock()
 	lis2, redirectURI2, _ := Listen()
+	var notices []string
 	flow2 := &Flow{
 		HTTPClient:  srv.Client(),
 		Meta:        meta,
@@ -336,9 +344,252 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 		Listener:    lis2,
 		OpenBrowser: opener,
 		Timeout:     5 * time.Second,
+		Notify:      func(msg string) { notices = append(notices, msg) },
 	}
-	if _, err := flow2.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "invalid_scope") {
-		t.Errorf("unscoped client: got err %v, want invalid_scope", err)
+	if _, err := flow2.Run(context.Background()); err != nil {
+		t.Errorf("unscoped client: got err %v, want success via the no-scope retry", err)
+	}
+	if flow2.UsedScopes != nil {
+		t.Errorf("UsedScopes = %v, want nil — the retry, not the first attempt, is what got through", flow2.UsedScopes)
+	}
+	if len(notices) != 1 || !strings.Contains(notices[0], "mcp") {
+		t.Errorf("notices = %v, want one line naming the rejected scope", notices)
+	}
+}
+
+// authzRecord captures one /authorize request so the retry tests can assert on
+// what changed between attempts.
+type authzRecord struct {
+	scope         string
+	state         string
+	codeChallenge string
+	redirectURI   string
+}
+
+// retryAS is an authorization server whose verdict on each /authorize is
+// decided by reject: a non-empty return value is redirected back as that OAuth
+// error code, an empty one issues an authorization code. Every hit is recorded.
+func retryAS(t *testing.T, reject func(scope string) string) (*httptest.Server, func() []authzRecord) {
+	t.Helper()
+	var mu sync.Mutex
+	var seen []authzRecord
+	st := &asState{}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/authorize", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		mu.Lock()
+		seen = append(seen, authzRecord{
+			scope:         q.Get("scope"),
+			state:         q.Get("state"),
+			codeChallenge: q.Get("code_challenge"),
+			redirectURI:   q.Get("redirect_uri"),
+		})
+		mu.Unlock()
+		redirect := q.Get("redirect_uri")
+		state := url.QueryEscape(q.Get("state"))
+		if code := reject(q.Get("scope")); code != "" {
+			http.Redirect(w, r, redirect+"?error="+code+"&error_description=scope+not+permitted+for+this+client&state="+state,
+				http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, redirect+"?code=auth-code-1&state="+state, http.StatusFound)
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.Form.Get("code") == "" || r.Form.Get("code_verifier") == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"invalid_request"}`))
+			return
+		}
+		access, refresh := st.issue()
+		writeToken(w, access, refresh)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv, func() []authzRecord {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]authzRecord(nil), seen...)
+	}
+}
+
+// retryFlow builds a Flow requesting "mcp" against srv, with a browser that
+// simply follows the authorization URL (and its redirect back to the loopback
+// callback). Notices are appended to notices.
+func retryFlow(t *testing.T, srv *httptest.Server, notices *[]string) *Flow {
+	t.Helper()
+	lis, redirectURI, err := Listen()
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	return &Flow{
+		HTTPClient: srv.Client(),
+		Meta: &Metadata{
+			AuthorizationEndpoint: srv.URL + "/authorize",
+			TokenEndpoint:         srv.URL + "/token",
+		},
+		ClientID:    "client-1",
+		RedirectURI: redirectURI,
+		Scopes:      []string{"mcp"},
+		Listener:    lis,
+		Timeout:     5 * time.Second,
+		Notify:      func(msg string) { *notices = append(*notices, msg) },
+		OpenBrowser: func(rawURL string) error {
+			go func() {
+				resp, _ := srv.Client().Get(rawURL)
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
+			}()
+			return nil
+		},
+	}
+}
+
+// TestFlowRetriesWithoutScopeOnInvalidScope is the core of issue #37: an AS
+// that refuses the requested scope but issues a code when none is asked for
+// must yield a token on the second attempt, over the same listener.
+func TestFlowRetriesWithoutScopeOnInvalidScope(t *testing.T) {
+	srv, records := retryAS(t, func(scope string) string {
+		if scope != "" {
+			return "invalid_scope"
+		}
+		return ""
+	})
+	var notices []string
+	flow := retryFlow(t, srv, &notices)
+
+	tok, err := flow.Run(context.Background())
+	if err != nil {
+		t.Fatalf("flow.Run: %v", err)
+	}
+	if tok.AccessToken == "" {
+		t.Error("no access token from the retry")
+	}
+	if flow.UsedScopes != nil {
+		t.Errorf("UsedScopes = %v, want nil (the no-scope retry succeeded)", flow.UsedScopes)
+	}
+
+	got := records()
+	if len(got) != 2 {
+		t.Fatalf("/authorize hits = %d, want 2", len(got))
+	}
+	if got[0].scope != "mcp" {
+		t.Errorf("first attempt scope = %q, want mcp", got[0].scope)
+	}
+	if got[1].scope != "" {
+		t.Errorf("retry scope = %q, want it omitted", got[1].scope)
+	}
+	// The redirect URI is pinned by the dynamic client registration, so the
+	// retry must not re-bind a port.
+	if got[0].redirectURI != got[1].redirectURI || got[0].redirectURI != flow.RedirectURI {
+		t.Errorf("redirect_uri drifted across attempts: %q then %q (flow: %q)",
+			got[0].redirectURI, got[1].redirectURI, flow.RedirectURI)
+	}
+	if got[0].state == got[1].state {
+		t.Error("retry reused the first attempt's state nonce")
+	}
+	if got[0].codeChallenge == got[1].codeChallenge {
+		t.Error("retry reused the first attempt's PKCE challenge")
+	}
+	if len(notices) != 1 || !strings.Contains(notices[0], `"mcp"`) {
+		t.Errorf("notices = %v, want one line naming the rejected scope", notices)
+	}
+}
+
+// TestFlowFailsAfterOneRetry bounds the retry: an AS that refuses regardless
+// must not send the user through a third browser open.
+func TestFlowFailsAfterOneRetry(t *testing.T) {
+	srv, records := retryAS(t, func(string) string { return "invalid_scope" })
+	var notices []string
+	flow := retryFlow(t, srv, &notices)
+
+	_, err := flow.Run(context.Background())
+	var authz *AuthzError
+	if !errors.As(err, &authz) {
+		t.Fatalf("err = %v (%T), want *AuthzError", err, err)
+	}
+	if authz.Code != "invalid_scope" {
+		t.Errorf("code = %q, want invalid_scope", authz.Code)
+	}
+	if !strings.Contains(authz.Error(), "scope not permitted for this client") {
+		t.Errorf("error %q does not surface the server's description", authz.Error())
+	}
+	if n := len(records()); n != 2 {
+		t.Errorf("/authorize hits = %d, want 2 (one retry, not a loop)", n)
+	}
+}
+
+// TestFlowNoRetryOnOtherErrors keeps the retry scoped to invalid_scope —
+// access_denied means the user said no, and reopening the browser would be
+// hostile.
+func TestFlowNoRetryOnOtherErrors(t *testing.T) {
+	srv, records := retryAS(t, func(string) string { return "access_denied" })
+	var notices []string
+	flow := retryFlow(t, srv, &notices)
+
+	_, err := flow.Run(context.Background())
+	var authz *AuthzError
+	if !errors.As(err, &authz) {
+		t.Fatalf("err = %v (%T), want *AuthzError", err, err)
+	}
+	if authz.Code != "access_denied" {
+		t.Errorf("code = %q, want access_denied", authz.Code)
+	}
+	if n := len(records()); n != 1 {
+		t.Errorf("/authorize hits = %d, want 1 (no retry)", n)
+	}
+	if len(notices) != 0 {
+		t.Errorf("notices = %v, want none", notices)
+	}
+}
+
+// TestFlowRetryRejectsStaleCallback proves the fresh per-attempt state nonce
+// fails a callback from the superseded first attempt closed, rather than
+// letting it resolve the retry.
+func TestFlowRetryRejectsStaleCallback(t *testing.T) {
+	srv, _ := retryAS(t, func(scope string) string {
+		if scope != "" {
+			return "invalid_scope"
+		}
+		return ""
+	})
+	var notices []string
+	flow := retryFlow(t, srv, &notices)
+
+	var firstState string
+	flow.OpenBrowser = func(rawURL string) error {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			return err
+		}
+		state := u.Query().Get("state")
+		if firstState == "" {
+			firstState = state
+			// Let the AS bounce this one back as invalid_scope.
+			go func() {
+				resp, _ := srv.Client().Get(rawURL)
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
+			}()
+			return nil
+		}
+		// On the retry, deliver a callback carrying the *first* attempt's
+		// state before the good one.
+		go func() {
+			stale := u.Query().Get("redirect_uri") + "?code=stolen&state=" + url.QueryEscape(firstState)
+			resp, _ := srv.Client().Get(stale)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		return nil
+	}
+
+	if _, err := flow.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "state mismatch") {
+		t.Fatalf("err = %v, want a state mismatch on the stale callback", err)
 	}
 }
 

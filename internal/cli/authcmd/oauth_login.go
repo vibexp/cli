@@ -91,6 +91,9 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		Scopes:      scopes,
 		Listener:    lis,
 		OpenBrowser: browserOpener(cmd),
+		// stdout is data-only, so the retry notice goes to stderr alongside the
+		// "Opening your browser…" line below.
+		Notify: func(msg string) { cmd.PrintErrln(msg) },
 	}
 	cmd.PrintErrln("Opening your browser to sign in… (waiting for authorization)")
 	token, err := flow.Run(ctx)
@@ -122,7 +125,10 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
-		Scopes:       scopes,
+		// The scopes that actually worked, not the ones we asked for: after a
+		// no-scope retry these differ, and reusableClientID must reason about
+		// what the server accepted.
+		Scopes: flow.UsedScopes,
 	}); err != nil {
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}

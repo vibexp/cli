@@ -53,6 +53,25 @@ directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
 `GET /health` (`health.go`) is the unauthenticated server version handle;
 `vibexp version` appends the server release sha when a context resolves.
 
+## Browser login (`internal/oauth`)
+
+`vibexp auth login` runs RFC 8414 discovery → RFC 7591 dynamic client
+registration (public client, loopback `http://127.0.0.1:<port>/callback`) →
+authorization code + PKCE S256 → RFC 8707 `resource` indicator. The requested
+scopes are negotiated against the server's `scopes_supported` and declared at
+registration.
+
+`oauth.Flow.Run` owns the callback server for the whole login, which lets it
+retry **once** — and only once — when the authorization callback comes back
+`error=invalid_scope`: it re-runs the browser leg with the `scope` parameter
+omitted, so the server applies its own default grant. The retry reuses the same
+listener, port, redirect URI and `client_id` (the redirect URI is pinned by the
+registration) but generates a fresh `state` nonce and PKCE pair, so a late
+callback from the first attempt fails closed as a state mismatch. A stderr
+notice precedes the second browser open, and the scopes actually used are what
+get persisted to `credentials.json`. Any other callback error fails on the
+first attempt.
+
 ## Global flags & precedence
 
 Root owns the persistent flags `--context`, `--team`, `--project`, `--format`,
