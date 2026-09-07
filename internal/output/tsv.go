@@ -17,16 +17,11 @@ func renderTSV(w io.Writer, raw []byte, spec *TableSpec) error {
 	bw := bufio.NewWriter(w)
 	for _, r := range rows {
 		for i, cell := range r {
-			r[i] = escapeTSV(cell)
+			r[i] = escapeCell(cell)
 		}
 		if _, err := bw.WriteString(strings.Join(r, "\t") + "\n"); err != nil {
 			return err
 		}
 	}
 	return bw.Flush()
-}
-
-func escapeTSV(s string) string {
-	replacer := strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
-	return replacer.Replace(s)
 }

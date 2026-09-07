@@ -31,6 +31,11 @@ func renderTable(w io.Writer, raw []byte, spec *TableSpec, color bool) error {
 	}
 	fmt.Fprintln(tw, strings.Join(headers, "\t"))
 	for _, r := range rows {
+		// Data cells only: headers are static column definitions that may carry
+		// ANSI bold, and escaping them would mangle the escape sequences.
+		for i, cell := range r {
+			r[i] = escapeCell(cell)
+		}
 		fmt.Fprintln(tw, strings.Join(r, "\t"))
 	}
 	return tw.Flush()
