@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -565,51 +566,89 @@ func TestFlowNoRetryWithoutScopes(t *testing.T) {
 	}
 }
 
-// TestFlowRetryRejectsStaleCallback proves the fresh per-attempt state nonce
-// fails a callback from the superseded first attempt closed, rather than
-// letting it resolve the retry.
-func TestFlowRetryRejectsStaleCallback(t *testing.T) {
-	srv, _ := retryAS(t, func(scope string) string {
-		if scope != "" {
-			return "invalid_scope"
-		}
-		return ""
-	})
-	var notices []string
-	flow := retryFlow(t, srv, &notices)
+// getAndClose issues a GET and hands back the response body, closing it.
+func getAndClose(t *testing.T, c *http.Client, rawURL string) (int, string) {
+	t.Helper()
+	resp, err := c.Get(rawURL)
+	if err != nil {
+		return 0, ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(body)
+}
 
+// assertNeutralPage asserts a superseded callback got HTTP 200 and the
+// "no longer active" page — not a 404 and not a "failed" message.
+func assertNeutralPage(t *testing.T, status int, body string) {
+	t.Helper()
+	if status != http.StatusOK {
+		t.Errorf("stale callback status = %d, want 200", status)
+	}
+	if !strings.Contains(body, "no longer active") {
+		t.Errorf("stale callback should render the neutral page, got %q", body)
+	}
+}
+
+// supersededOpener drives the retry scenario: the first browser open is bounced
+// back by the AS as invalid_scope; on the retry it replays the first attempt's
+// callback (staleQuery) before driving the good one, so the stale hit is
+// guaranteed to land while the retry is waiting.
+func supersededOpener(t *testing.T, srv *httptest.Server, staleQuery string) BrowserOpener {
+	t.Helper()
 	var firstState string
-	flow.OpenBrowser = func(rawURL string) error {
+	return func(rawURL string) error {
 		u, err := url.Parse(rawURL)
 		if err != nil {
 			return err
 		}
-		state := u.Query().Get("state")
 		if firstState == "" {
-			firstState = state
-			// Let the AS bounce this one back as invalid_scope.
-			go func() {
-				resp, _ := srv.Client().Get(rawURL)
-				if resp != nil {
-					_ = resp.Body.Close()
-				}
-			}()
+			firstState = u.Query().Get("state")
+			go func() { _, _ = getAndClose(t, srv.Client(), rawURL) }()
 			return nil
 		}
-		// On the retry, deliver a callback carrying the *first* attempt's
-		// state instead of the good one.
+		stale := u.Query().Get("redirect_uri") + staleQuery + url.QueryEscape(firstState)
 		go func() {
-			stale := u.Query().Get("redirect_uri") + "?code=stolen&state=" + url.QueryEscape(firstState)
-			resp, _ := srv.Client().Get(stale)
-			if resp != nil {
-				_ = resp.Body.Close()
-			}
+			status, body := getAndClose(t, srv.Client(), stale)
+			assertNeutralPage(t, status, body)
+			_, _ = getAndClose(t, srv.Client(), rawURL)
 		}()
 		return nil
 	}
+}
 
-	if _, err := flow.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "state mismatch") {
-		t.Fatalf("err = %v, want a state mismatch on the stale callback", err)
+// TestFlowRetryIgnoresSupersededCallback proves a replay of the first attempt's
+// callback — the user reloading the stale browser tab while the retry is in
+// flight — is ignored rather than aborting the retry. The stale tab is sitting
+// on an error callback, so a reload replays that; the full URL with the code
+// can be replayed too, and both must be inert.
+func TestFlowRetryIgnoresSupersededCallback(t *testing.T) {
+	for _, tc := range []struct{ name, staleQuery string }{
+		{"code replay", "?code=stolen&state="},
+		{"error replay", "?error=access_denied&state="},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, _ := retryAS(t, func(scope string) string {
+				if scope != "" {
+					return "invalid_scope"
+				}
+				return ""
+			})
+			var notices []string
+			flow := retryFlow(t, srv, &notices)
+			flow.OpenBrowser = supersededOpener(t, srv, tc.staleQuery)
+
+			tok, err := flow.Run(context.Background())
+			if err != nil {
+				t.Fatalf("Run = %v, want the retry to complete despite the stale callback", err)
+			}
+			if tok == nil || tok.AccessToken == "" {
+				t.Fatalf("no token: %+v", tok)
+			}
+			if flow.UsedScopes != nil {
+				t.Errorf("UsedScopes = %v, want nil after a no-scope retry", flow.UsedScopes)
+			}
+		})
 	}
 }
 

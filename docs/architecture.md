@@ -102,10 +102,13 @@ retry **once** — and only once — when the authorization callback comes back
 `error=invalid_scope`: it re-runs the browser leg with the `scope` parameter
 omitted, so the server applies its own default grant. The retry reuses the same
 listener, port, redirect URI and `client_id` (the redirect URI is pinned by the
-registration) but generates a fresh `state` nonce and PKCE pair, so a late
-callback from the first attempt fails closed as a state mismatch. A stderr
-notice precedes the second browser open. Any other callback error fails on the
-first attempt.
+registration) but generates a fresh `state` nonce and PKCE pair. A late callback
+from the first attempt is **ignored** — the flow retires each attempt's state as
+it supersedes it, so a reload of the stale browser tab renders a neutral "window
+is no longer active" page and resolves nothing, rather than aborting the
+in-flight retry. A state matching *no* attempt still fails closed as a possible
+CSRF. A stderr notice precedes the second browser open. Any other callback error
+fails on the first attempt.
 
 `credentials.json` records the scopes the successful attempt actually carried,
 not the ones negotiated — so after a retry the entry stores none. That is what
