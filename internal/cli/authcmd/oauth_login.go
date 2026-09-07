@@ -192,11 +192,16 @@ func scopesCovered(have, want []string) bool {
 	return true
 }
 
+// openBrowser is the real launcher, indirected through a package variable so
+// the login flow can be driven end to end in tests without a display server.
+// Never reassigned outside tests.
+var openBrowser = oauth.OpenBrowser
+
 // browserOpener opens the URL and, on failure, prints it for manual opening so
 // the flow can still complete.
 func browserOpener(cmd *cobra.Command) oauth.BrowserOpener {
 	return func(rawURL string) error {
-		if err := oauth.OpenBrowser(rawURL); err != nil {
+		if err := openBrowser(rawURL); err != nil {
 			cmd.PrintErrln("Could not open a browser automatically. Open this URL to continue:")
 			cmd.PrintErrln("  " + rawURL)
 		}
