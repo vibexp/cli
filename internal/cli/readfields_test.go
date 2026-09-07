@@ -207,6 +207,76 @@ func tsvRows(out string) [][]string {
 	return rows
 }
 
+// freshnessCases pairs each noun with its stale and fresh fixture slugs and the
+// whole TSV cells the stale detail output must carry. Adding a noun is a row.
+var freshnessCases = []struct {
+	noun, stale, fresh string
+	staleCells         []string
+}{
+	{"memory", "m-stale", "m-fresh", []string{"stale", "2026-08-01T00:00:00Z", "rule_run", "2"}},
+	{"prompt", "p-stale", "p-fresh", []string{"stale", "2026-08-01T00:00:00Z", "rule_run", "2"}},
+	{"blueprint", "b-stale", "b-fresh", []string{"stale", "2026-08-01T00:00:00Z", "rule_run", "2"}},
+	{"artifact", "a-stale", "a-fresh", []string{"stale", "2026-08-01T00:00:00Z", "rule_run", "2"}},
+}
+
+// rowsFrom asserts the command exited 0 and produced exactly want TSV rows,
+// returning them split into fields.
+func rowsFrom(t *testing.T, out string, code, want int) [][]string {
+	t.Helper()
+	if code != 0 {
+		t.Fatalf("exit = %d, out=%q", code, out)
+	}
+	rows := tsvRows(out)
+	if len(rows) != want {
+		t.Fatalf("got %d rows, want %d: %q", len(rows), want, out)
+	}
+	return rows
+}
+
+// staleCellIndex locates the STALE cell in a stale row so the same column can be
+// read back on the fresh row.
+func staleCellIndex(t *testing.T, row []string) int {
+	t.Helper()
+	idx := -1
+	for i, f := range row {
+		if f == "stale" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("stale row has no %q cell: %v", "stale", row)
+	}
+	return idx
+}
+
+// assertHasCells matches whole TSV fields, not substrings: the fixture slugs
+// contain "stale" and every timestamp contains "2", so strings.Contains would
+// pass on output carrying no freshness at all.
+func assertHasCells(t *testing.T, row []string, want ...string) {
+	t.Helper()
+	for _, w := range want {
+		if !slices.Contains(row, w) {
+			t.Errorf("stale detail has no %q cell: %v", w, row)
+		}
+	}
+}
+
+// assertNoFreshnessLeak asserts a fresh resource leaves every freshness cell
+// empty and leaks no stale state into the rest of the output.
+func assertNoFreshnessLeak(t *testing.T, out string, row []string) {
+	t.Helper()
+	for i, f := range row {
+		// "0" would be the bare-`length` bug: it reads as "evaluated,
+		// no rules matched" rather than "not stale".
+		if f == "0" || f == "null" || f == "<nil>" {
+			t.Errorf("fresh detail field %d = %q, want an empty cell: %v", i, f, row)
+		}
+	}
+	if strings.Contains(out, "stale") || strings.Contains(out, "rule_run") {
+		t.Errorf("fresh detail leaked stale state: %q", out)
+	}
+}
+
 // TestFreshnessListColumn asserts every noun's list carries the STALE flag on a
 // stale row, leaves it empty on a fresh one, and keeps a stable column count
 // across the two — the flag must never shift a row's field layout.
@@ -215,31 +285,16 @@ func TestFreshnessListColumn(t *testing.T) {
 	defer srv.Close()
 	cfg, cs := apiFixture(t, srv.URL, "the-team")
 
-	for _, noun := range []string{"memory", "prompt", "blueprint", "artifact"} {
-		t.Run(noun, func(t *testing.T) {
-			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", noun, "list")
-			if code != 0 {
-				t.Fatalf("list exit = %d, out=%q", code, out)
-			}
-			rows := tsvRows(out)
-			if len(rows) != 2 {
-				t.Fatalf("got %d rows, want 2 (one stale, one fresh): %q", len(rows), out)
-			}
+	for _, c := range freshnessCases {
+		t.Run(c.noun, func(t *testing.T) {
+			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "list")
+			rows := rowsFrom(t, out, code, 2)
 			if len(rows[0]) != len(rows[1]) {
 				t.Errorf("column count differs between stale (%d) and fresh (%d) rows: %q",
 					len(rows[0]), len(rows[1]), out)
 			}
-			staleIdx := -1
-			for i, f := range rows[0] {
-				if f == "stale" {
-					staleIdx = i
-				}
-			}
-			if staleIdx < 0 {
-				t.Fatalf("stale row has no %q cell: %v", "stale", rows[0])
-			}
 			// Absent freshness renders as an empty cell, never "null"/"<nil>".
-			if got := rows[1][staleIdx]; got != "" {
+			if got := rows[1][staleCellIndex(t, rows[0])]; got != "" {
 				t.Errorf("fresh row STALE cell = %q, want empty", got)
 			}
 		})
@@ -254,49 +309,13 @@ func TestFreshnessDetailColumns(t *testing.T) {
 	defer srv.Close()
 	cfg, cs := apiFixture(t, srv.URL, "the-team")
 
-	cases := []struct{ noun, stale, fresh string }{
-		{"memory", "m-stale", "m-fresh"},
-		{"prompt", "p-stale", "p-fresh"},
-		{"blueprint", "b-stale", "b-fresh"},
-		{"artifact", "a-stale", "a-fresh"},
-	}
-	for _, c := range cases {
+	for _, c := range freshnessCases {
 		t.Run(c.noun, func(t *testing.T) {
 			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "get", c.stale)
-			if code != 0 {
-				t.Fatalf("get stale exit = %d, out=%q", code, out)
-			}
-			// Match whole TSV fields, not substrings: the fixture slugs contain
-			// "stale" and every timestamp contains "2", so strings.Contains
-			// would pass on output carrying no freshness at all.
-			staleRows := tsvRows(out)
-			if len(staleRows) != 1 {
-				t.Fatalf("got %d rows, want 1: %q", len(staleRows), out)
-			}
-			for _, want := range []string{"stale", "2026-08-01T00:00:00Z", "rule_run", "2"} {
-				if !slices.Contains(staleRows[0], want) {
-					t.Errorf("stale detail has no %q cell: %v", want, staleRows[0])
-				}
-			}
+			assertHasCells(t, rowsFrom(t, out, code, 1)[0], c.staleCells...)
 
 			out, _, code = runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "get", c.fresh)
-			if code != 0 {
-				t.Fatalf("get fresh exit = %d, out=%q", code, out)
-			}
-			rows := tsvRows(out)
-			if len(rows) != 1 {
-				t.Fatalf("got %d rows, want 1: %q", len(rows), out)
-			}
-			for i, f := range rows[0] {
-				// "0" would be the bare-`length` bug: it reads as "evaluated,
-				// no rules matched" rather than "not stale".
-				if f == "0" || f == "null" || f == "<nil>" {
-					t.Errorf("fresh detail field %d = %q, want an empty cell: %v", i, f, rows[0])
-				}
-			}
-			if strings.Contains(out, "stale") || strings.Contains(out, "rule_run") {
-				t.Errorf("fresh detail leaked stale state: %q", out)
-			}
+			assertNoFreshnessLeak(t, out, rowsFrom(t, out, code, 1)[0])
 		})
 	}
 }
