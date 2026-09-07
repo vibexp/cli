@@ -58,22 +58,37 @@ type tokenErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+// CodeExchange describes one authorization-code exchange. It is a struct rather
+// than a parameter list because the call carries seven interchangeable strings,
+// and at that width a transposed pair (redirect_uri and resource, say) compiles
+// cleanly and fails only against a live server.
+type CodeExchange struct {
+	TokenEndpoint string
+	ClientID      string
+	Code          string
+	Verifier      string // PKCE code_verifier
+	RedirectURI   string
+	Resource      string // RFC 8707 resource indicator; empty omits it
+	// RequestedScopes are the scopes the authorization request carried. They
+	// are the RFC 6749 §5.1 fallback for Token.Scopes when the token response
+	// omits `scope`.
+	RequestedScopes []string
+}
+
 // ExchangeCode swaps an authorization code for tokens (with PKCE verifier and
-// RFC 8707 resource indicator). requestedScopes are the scopes the
-// authorization request carried; they are the RFC 6749 §5.1 fallback for
-// Token.Scopes when the token response omits `scope`.
-func ExchangeCode(ctx context.Context, hc *http.Client, tokenEndpoint, clientID, code, verifier, redirectURI, resource string, requestedScopes []string) (*Token, error) {
+// RFC 8707 resource indicator).
+func ExchangeCode(ctx context.Context, hc *http.Client, ex CodeExchange) (*Token, error) {
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
-		"code":          {code},
-		"redirect_uri":  {redirectURI},
-		"client_id":     {clientID},
-		"code_verifier": {verifier},
+		"code":          {ex.Code},
+		"redirect_uri":  {ex.RedirectURI},
+		"client_id":     {ex.ClientID},
+		"code_verifier": {ex.Verifier},
 	}
-	if resource != "" {
-		form.Set("resource", resource)
+	if ex.Resource != "" {
+		form.Set("resource", ex.Resource)
 	}
-	return postToken(ctx, hc, tokenEndpoint, form, requestedScopes)
+	return postToken(ctx, hc, ex.TokenEndpoint, form, ex.RequestedScopes)
 }
 
 // Refresh exchanges a refresh token for a new token set. A rotated server

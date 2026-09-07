@@ -140,8 +140,11 @@ func TestExchangeAndRefresh(t *testing.T) {
 	srv := mockAS(t, &asState{})
 	defer srv.Close()
 
-	tok, err := ExchangeCode(context.Background(), srv.Client(), srv.URL+"/token",
-		"client-1", "auth-code-1", "verifier-1", "http://127.0.0.1:1/callback", "https://api.example", []string{"mcp"})
+	tok, err := ExchangeCode(context.Background(), srv.Client(), CodeExchange{
+		TokenEndpoint: srv.URL + "/token", ClientID: "client-1", Code: "auth-code-1",
+		Verifier: "verifier-1", RedirectURI: "http://127.0.0.1:1/callback",
+		Resource: "https://api.example", RequestedScopes: []string{"mcp"},
+	})
 	if err != nil {
 		t.Fatalf("ExchangeCode: %v", err)
 	}
@@ -743,8 +746,11 @@ func TestExchangeCodeRecordsGrantedScopes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := grantAS(t, tc.granted)
-			tok, err := ExchangeCode(context.Background(), srv.Client(), srv.URL+"/token",
-				"client-1", "auth-code-1", "verifier-1", "http://127.0.0.1:1/callback", "", tc.requested)
+			tok, err := ExchangeCode(context.Background(), srv.Client(), CodeExchange{
+				TokenEndpoint: srv.URL + "/token", ClientID: "client-1", Code: "auth-code-1",
+				Verifier: "verifier-1", RedirectURI: "http://127.0.0.1:1/callback",
+				RequestedScopes: tc.requested,
+			})
 			if err != nil {
 				t.Fatalf("ExchangeCode: %v", err)
 			}

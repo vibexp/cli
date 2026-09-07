@@ -185,8 +185,15 @@ func (f *Flow) runOnce(ctx context.Context, scopes []string) (*Token, error) {
 		if res.err != nil {
 			return nil, res.err
 		}
-		return ExchangeCode(ctx, f.HTTPClient, f.Meta.TokenEndpoint, f.ClientID,
-			res.code, pkce.Verifier, f.RedirectURI, f.Resource, scopes)
+		return ExchangeCode(ctx, f.HTTPClient, CodeExchange{
+			TokenEndpoint:   f.Meta.TokenEndpoint,
+			ClientID:        f.ClientID,
+			Code:            res.code,
+			Verifier:        pkce.Verifier,
+			RedirectURI:     f.RedirectURI,
+			Resource:        f.Resource,
+			RequestedScopes: scopes,
+		})
 	}
 }
 
