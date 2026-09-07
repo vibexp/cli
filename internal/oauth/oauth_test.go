@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -140,7 +141,7 @@ func TestExchangeAndRefresh(t *testing.T) {
 	defer srv.Close()
 
 	tok, err := ExchangeCode(context.Background(), srv.Client(), srv.URL+"/token",
-		"client-1", "auth-code-1", "verifier-1", "http://127.0.0.1:1/callback", "https://api.example")
+		"client-1", "auth-code-1", "verifier-1", "http://127.0.0.1:1/callback", "https://api.example", []string{"mcp"})
 	if err != nil {
 		t.Fatalf("ExchangeCode: %v", err)
 	}
@@ -228,7 +229,14 @@ func TestFlowEndToEnd(t *testing.T) {
 // the CLI's authorization request because Register now declares those scopes.
 // A client registered without the scope is rejected with invalid_scope — the
 // exact failure the DCR fix removes.
-func TestFlowScopeEnforcingAS(t *testing.T) {
+// scopeEnforcingAS models a server that grants per-client scopes from the DCR
+// declaration and refuses any scope a client did not declare. setGrant lets a
+// test rewrite a client's allow-list. Its token endpoint omits `scope`, which
+// RFC 6749 §5.1 defines as "identical to the request", so Token.Scopes here
+// exercises the fallback; the echoing branch is covered by
+// TestExchangeCodeRecordsGrantedScopes.
+func scopeEnforcingAS(t *testing.T) (srv *httptest.Server, setGrant func(clientID string, scopes []string)) {
+	t.Helper()
 	var mu sync.Mutex
 	granted := map[string][]string{} // client_id -> scopes granted at registration
 	nextID := 0
@@ -270,10 +278,33 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 			return
 		}
 		access, refresh := st.issue()
-		writeToken(w, access, refresh)
+		writeToken(w, access, refresh, "")
 	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv = httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv, func(clientID string, scopes []string) {
+		mu.Lock()
+		defer mu.Unlock()
+		granted[clientID] = scopes
+	}
+}
+
+// followRedirectOpener is a simulated browser: it follows the /authorize
+// redirect through to the loopback callback.
+func followRedirectOpener(srv *httptest.Server) BrowserOpener {
+	return func(rawURL string) error {
+		go func() {
+			resp, _ := srv.Client().Get(rawURL)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+		}()
+		return nil
+	}
+}
+
+func TestFlowScopeEnforcingAS(t *testing.T) {
+	srv, setGrant := scopeEnforcingAS(t)
 
 	meta := &Metadata{
 		AuthorizationEndpoint: srv.URL + "/authorize",
@@ -293,16 +324,7 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
-	// Simulated browser: follow the /authorize redirect to the loopback callback.
-	opener := func(rawURL string) error {
-		go func() {
-			resp, _ := srv.Client().Get(rawURL)
-			if resp != nil {
-				_ = resp.Body.Close()
-			}
-		}()
-		return nil
-	}
+	opener := followRedirectOpener(srv)
 
 	flow := &Flow{
 		HTTPClient:  srv.Client(),
@@ -322,8 +344,8 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 		t.Errorf("no access token from flow")
 	}
 
-	if len(flow.UsedScopes) != 1 || flow.UsedScopes[0] != "mcp" {
-		t.Errorf("UsedScopes = %v, want [mcp] (the first attempt should have succeeded)", flow.UsedScopes)
+	if len(tok.Scopes) != 1 || tok.Scopes[0] != "mcp" {
+		t.Errorf("Token.Scopes = %v, want [mcp] (the first attempt should have succeeded)", tok.Scopes)
 	}
 
 	// Control: a client registered without the scope is barred from it —
@@ -331,9 +353,7 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 	// declaration is why the flow above succeeded on its first attempt. Since
 	// issue #37 the flow no longer dies there: the invalid_scope callback
 	// triggers the one-shot no-scope retry, which this AS admits.
-	mu.Lock()
-	granted["client-unscoped"] = nil
-	mu.Unlock()
+	setGrant("client-unscoped", nil)
 	lis2, redirectURI2, _ := Listen()
 	var notices []string
 	flow2 := &Flow{
@@ -347,11 +367,14 @@ func TestFlowScopeEnforcingAS(t *testing.T) {
 		Timeout:     5 * time.Second,
 		Notify:      func(msg string) { notices = append(notices, msg) },
 	}
-	if _, err := flow2.Run(context.Background()); err != nil {
-		t.Errorf("unscoped client: got err %v, want success via the no-scope retry", err)
+	tok2, err := flow2.Run(context.Background())
+	if err != nil {
+		t.Fatalf("unscoped client: got err %v, want success via the no-scope retry", err)
 	}
-	if flow2.UsedScopes != nil {
-		t.Errorf("UsedScopes = %v, want nil — the retry, not the first attempt, is what got through", flow2.UsedScopes)
+	// The retry sent no scope and the server echoed none back, so §5.1's
+	// "identical to the request" fallback yields none granted.
+	if tok2.Scopes != nil {
+		t.Errorf("Token.Scopes = %v, want nil — the retry, not the first attempt, is what got through", tok2.Scopes)
 	}
 	if len(notices) != 1 || !strings.Contains(notices[0], "mcp") {
 		t.Errorf("notices = %v, want one line naming the rejected scope", notices)
@@ -404,7 +427,8 @@ func retryAS(t *testing.T, reject func(scope string) string) (*httptest.Server, 
 			return
 		}
 		access, refresh := st.issue()
-		writeToken(w, access, refresh)
+		// Omits `scope`; see the note in TestFlowScopeEnforcingAS.
+		writeToken(w, access, refresh, "")
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -468,8 +492,8 @@ func TestFlowRetriesWithoutScopeOnInvalidScope(t *testing.T) {
 	if tok.AccessToken == "" {
 		t.Error("no access token from the retry")
 	}
-	if flow.UsedScopes != nil {
-		t.Errorf("UsedScopes = %v, want nil (the no-scope retry succeeded)", flow.UsedScopes)
+	if tok.Scopes != nil {
+		t.Errorf("Token.Scopes = %v, want nil (the no-scope retry succeeded and the server echoed no grant)", tok.Scopes)
 	}
 
 	got := records()
@@ -645,8 +669,8 @@ func TestFlowRetryIgnoresSupersededCallback(t *testing.T) {
 			if tok == nil || tok.AccessToken == "" {
 				t.Fatalf("no token: %+v", tok)
 			}
-			if flow.UsedScopes != nil {
-				t.Errorf("UsedScopes = %v, want nil after a no-scope retry", flow.UsedScopes)
+			if tok.Scopes != nil {
+				t.Errorf("Token.Scopes = %v, want nil after a no-scope retry", tok.Scopes)
 			}
 		})
 	}
@@ -683,4 +707,73 @@ func contains(s []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// grantAS answers the token endpoint with grantedScope verbatim; an empty
+// string omits the `scope` member entirely (RFC 6749 §5.1: "identical to the
+// request"). Fabricated throughout.
+func grantAS(t *testing.T, grantedScope string) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		w.Header().Set("Content-Type", "application/json")
+		writeToken(w, "access-1", "refresh-1", grantedScope)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestExchangeCodeRecordsGrantedScopes pins the whole §5.1 contract: a present
+// `scope` is authoritative even when it narrows the request, and an absent one
+// means the request's own scopes.
+func TestExchangeCodeRecordsGrantedScopes(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		granted   string
+		requested []string
+		want      []string
+	}{
+		{"narrowed grant wins over the request", "mcp", []string{"mcp", "offline_access"}, []string{"mcp"}},
+		{"echoed identical grant", "mcp", []string{"mcp"}, []string{"mcp"}},
+		{"omitted scope falls back to the request", "", []string{"mcp"}, []string{"mcp"}},
+		{"omitted scope on a no-scope request grants none", "", nil, nil},
+		{"broadened grant is still recorded as granted", "mcp admin", []string{"mcp"}, []string{"mcp", "admin"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := grantAS(t, tc.granted)
+			tok, err := ExchangeCode(context.Background(), srv.Client(), srv.URL+"/token",
+				"client-1", "auth-code-1", "verifier-1", "http://127.0.0.1:1/callback", "", tc.requested)
+			if err != nil {
+				t.Fatalf("ExchangeCode: %v", err)
+			}
+			if !reflect.DeepEqual(tok.Scopes, tc.want) {
+				t.Errorf("Token.Scopes = %v, want %v", tok.Scopes, tc.want)
+			}
+		})
+	}
+}
+
+// TestRefreshCarriesNoRequestedScopeFallback documents why the refresh path has
+// no fallback: a refresh request sends no scope, so an omitted response `scope`
+// has nothing to be "identical to". Callers keep the authorization grant's set.
+func TestRefreshCarriesNoRequestedScopeFallback(t *testing.T) {
+	srv := grantAS(t, "")
+	tok, err := Refresh(context.Background(), srv.Client(), srv.URL+"/token", "client-1", "refresh-0", "")
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if tok.Scopes != nil {
+		t.Errorf("Token.Scopes = %v, want nil on a refresh with no echoed scope", tok.Scopes)
+	}
+
+	srv2 := grantAS(t, "mcp")
+	tok2, err := Refresh(context.Background(), srv2.Client(), srv2.URL+"/token", "client-1", "refresh-0", "")
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	if len(tok2.Scopes) != 1 || tok2.Scopes[0] != "mcp" {
+		t.Errorf("Token.Scopes = %v, want [mcp] when the refresh response echoes one", tok2.Scopes)
+	}
 }

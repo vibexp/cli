@@ -62,12 +62,6 @@ type Flow struct {
 	// the package stays usable without a printer.
 	Notify func(string)
 
-	// UsedScopes are the scopes on the authorization request that succeeded:
-	// Scopes normally, nil when the no-scope retry is what worked. Only
-	// meaningful after Run returns without error; callers persist this rather
-	// than Scopes so the next login reasons about what the server accepted.
-	UsedScopes []string
-
 	// cur is the in-flight attempt. The callback server outlives an individual
 	// attempt, so the handler reads the state nonce and result channel from
 	// here rather than closing over one attempt's values.
@@ -137,7 +131,6 @@ func (f *Flow) Run(ctx context.Context) (*Token, error) {
 
 	tok, err := f.runOnce(ctx, f.Scopes)
 	if err == nil {
-		f.UsedScopes = f.Scopes
 		return tok, nil
 	}
 
@@ -151,12 +144,7 @@ func (f *Flow) Run(ctx context.Context) (*Token, error) {
 	f.notify(fmt.Sprintf("The authorization server rejected the requested scope %q; retrying without it — a second browser window will open.",
 		strings.Join(f.Scopes, " ")))
 
-	tok, err = f.runOnce(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	f.UsedScopes = nil
-	return tok, nil
+	return f.runOnce(ctx, nil)
 }
 
 // runOnce performs a single authorization attempt against an already-running
@@ -198,7 +186,7 @@ func (f *Flow) runOnce(ctx context.Context, scopes []string) (*Token, error) {
 			return nil, res.err
 		}
 		return ExchangeCode(ctx, f.HTTPClient, f.Meta.TokenEndpoint, f.ClientID,
-			res.code, pkce.Verifier, f.RedirectURI, f.Resource)
+			res.code, pkce.Verifier, f.RedirectURI, f.Resource, scopes)
 	}
 }
 

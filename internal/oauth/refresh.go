@@ -120,6 +120,10 @@ func (r *Refresher) AccessToken(ctx context.Context) (string, error) {
 		entry.RefreshToken = newTok.RefreshToken // honor rotation
 	}
 	entry.ExpiresAt = newTok.Expiry
+	// entry.Scopes is deliberately untouched. It records what the authorization
+	// grant carried, which is what reusableClientID reasons about at the next
+	// login; a refresh request sends no scope, so a response omitting one would
+	// otherwise blank the set on every refresh.
 	if err := r.Store.Save(r.ContextName, *entry); err != nil {
 		return "", err
 	}
