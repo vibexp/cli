@@ -220,15 +220,16 @@ var freshnessCases = []struct {
 }
 
 // rowsFrom asserts the command exited 0 and produced exactly want TSV rows,
-// returning them split into fields.
-func rowsFrom(t *testing.T, out string, code, want int) [][]string {
+// returning them split into fields. label names the invocation, so a subtest
+// running the command more than once still says which one failed.
+func rowsFrom(t *testing.T, label, out string, code, want int) [][]string {
 	t.Helper()
 	if code != 0 {
-		t.Fatalf("exit = %d, out=%q", code, out)
+		t.Fatalf("%s exit = %d, out=%q", label, code, out)
 	}
 	rows := tsvRows(out)
 	if len(rows) != want {
-		t.Fatalf("got %d rows, want %d: %q", len(rows), want, out)
+		t.Fatalf("%s got %d rows, want %d: %q", label, len(rows), want, out)
 	}
 	return rows
 }
@@ -249,10 +250,10 @@ func staleCellIndex(t *testing.T, row []string) int {
 	return idx
 }
 
-// assertHasCells matches whole TSV fields, not substrings: the fixture slugs
+// assertStaleCells matches whole TSV fields, not substrings: the fixture slugs
 // contain "stale" and every timestamp contains "2", so strings.Contains would
 // pass on output carrying no freshness at all.
-func assertHasCells(t *testing.T, row []string, want ...string) {
+func assertStaleCells(t *testing.T, row []string, want ...string) {
 	t.Helper()
 	for _, w := range want {
 		if !slices.Contains(row, w) {
@@ -288,13 +289,14 @@ func TestFreshnessListColumn(t *testing.T) {
 	for _, c := range freshnessCases {
 		t.Run(c.noun, func(t *testing.T) {
 			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "list")
-			rows := rowsFrom(t, out, code, 2)
+			rows := rowsFrom(t, "list", out, code, 2)
 			if len(rows[0]) != len(rows[1]) {
 				t.Errorf("column count differs between stale (%d) and fresh (%d) rows: %q",
 					len(rows[0]), len(rows[1]), out)
 			}
+			staleIdx := staleCellIndex(t, rows[0])
 			// Absent freshness renders as an empty cell, never "null"/"<nil>".
-			if got := rows[1][staleCellIndex(t, rows[0])]; got != "" {
+			if got := rows[1][staleIdx]; got != "" {
 				t.Errorf("fresh row STALE cell = %q, want empty", got)
 			}
 		})
@@ -312,10 +314,10 @@ func TestFreshnessDetailColumns(t *testing.T) {
 	for _, c := range freshnessCases {
 		t.Run(c.noun, func(t *testing.T) {
 			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "get", c.stale)
-			assertHasCells(t, rowsFrom(t, out, code, 1)[0], c.staleCells...)
+			assertStaleCells(t, rowsFrom(t, "get stale", out, code, 1)[0], c.staleCells...)
 
 			out, _, code = runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "get", c.fresh)
-			assertNoFreshnessLeak(t, out, rowsFrom(t, out, code, 1)[0])
+			assertNoFreshnessLeak(t, out, rowsFrom(t, "get fresh", out, code, 1)[0])
 		})
 	}
 }
