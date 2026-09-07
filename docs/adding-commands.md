@@ -56,6 +56,11 @@ under `--format=json`; the `TableSpec` only drives table/TSV.
    such field the same way; a literal copied into four noun packages is four
    places to fix when its gojq expression turns out to be subtly wrong.
 
+   A noun exposing a **second** paginated collection uses
+   `resource.NewNamedListCommand("<verb>", …)` — identical in every respect but
+   the verb (`team audit` alongside `team list`). `NewListCommand` is that call
+   with `"list"`.
+
 3. **Register it** in `internal/cli/root.go`:
    `root.AddCommand(thingcmd.New(resource.CredResolver(credResolver), getenv))`.
 4. **Test it** — an `httptest` server returning a **fabricated** response shape,

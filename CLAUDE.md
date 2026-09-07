@@ -31,7 +31,8 @@ anything; go to the code for detail, not to issue bodies.
   `--stale` → `freshness=stale`, and `prompt list` takes **only** that one, since
   `listPrompts` has no metadata param), relations (`vibexp relations` — note the
   plural, the only one),
-  whoami/teams/projects — plus `vibexp api <METHOD> <path>` raw passthrough for
+  whoami/teams (`team list` plus `team audit`, the v0.12.0 cross-team settings-copy
+  trail)/projects — plus `vibexp api <METHOD> <path>` raw passthrough for
   everything else. `vibexp --help` is the authoritative surface.
 - **Contexts:** multi-context (kubectl-style) in `~/.vibexp/config.yaml`; credentials
   separately in `~/.vibexp/credentials.json` (0600, atomic writes). Precedence everywhere:
