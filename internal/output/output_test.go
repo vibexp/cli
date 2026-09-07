@@ -149,3 +149,58 @@ func TestColorEnabled(t *testing.T) {
 		t.Error("non-TTY must never color")
 	}
 }
+
+// --- control whitespace in data cells (issue #70) ---
+
+// dirtyFixture carries a tab, a newline and a carriage return inside one cell;
+// cleanFixture is the same record with those already collapsed to spaces.
+const (
+	dirtyFixture = `{"items":[{"id":"a1","name":"Alpha","active":true},{"id":"b2","name":"Be\tta\nGam\rma","active":false}]}`
+	cleanFixture = `{"items":[{"id":"a1","name":"Alpha","active":true},{"id":"b2","name":"Be ta Gam ma","active":false}]}`
+)
+
+func TestRenderTableEscapesControlWhitespace(t *testing.T) {
+	out := render(t, dirtyFixture, listSpec(), Options{Format: FormatTable, IsTTY: true, Color: false})
+
+	// One header line plus one line per record — a raw newline would add more.
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 1 header + 2 data lines, got %d:\n%q", len(lines), out)
+	}
+	// No control whitespace survives inside the grid.
+	for _, bad := range []string{"\t", "\r"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("table still contains %q:\n%q", bad, out)
+		}
+	}
+	// The whole mangled value stays on the record's own line.
+	if !strings.Contains(lines[2], "Be ta Gam ma") {
+		t.Errorf("escaped value not on the record line:\n%q", lines[2])
+	}
+}
+
+func TestRenderTableAlignmentUnaffectedByControlWhitespace(t *testing.T) {
+	dirty := render(t, dirtyFixture, listSpec(), Options{Format: FormatTable, IsTTY: true, Color: false})
+	clean := render(t, cleanFixture, listSpec(), Options{Format: FormatTable, IsTTY: true, Color: false})
+	if dirty != clean {
+		t.Errorf("a cell with control whitespace must render identically to its collapsed form:\n dirty %q\n clean %q", dirty, clean)
+	}
+}
+
+func TestRenderTableColorHeadersNotEscaped(t *testing.T) {
+	out := render(t, dirtyFixture, listSpec(), Options{Format: FormatTable, IsTTY: true, Color: true})
+	header := strings.SplitN(out, "\n", 2)[0]
+	for _, want := range []string{ansiBold + "ID" + ansiReset, ansiBold + "NAME" + ansiReset, ansiBold + "ACTIVE" + ansiReset} {
+		if !strings.Contains(header, want) {
+			t.Errorf("header ANSI mangled, want %q in:\n%q", want, header)
+		}
+	}
+}
+
+func TestRenderTSVEscapingUnchanged(t *testing.T) {
+	out := render(t, dirtyFixture, listSpec(), Options{Format: FormatAuto, IsTTY: false})
+	const want = "a1\tAlpha\ttrue\nb2\tBe ta Gam ma\tfalse\n"
+	if out != want {
+		t.Errorf("TSV escaping regressed:\n got %q\nwant %q", out, want)
+	}
+}
