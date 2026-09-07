@@ -13,8 +13,16 @@ import (
 // the pagination flags and wires RunE to RunList, so a noun package only
 // supplies its path and columns.
 func NewListCommand(resolve CredResolver, getenv config.Getenv, short string, cfg ListConfig) *cobra.Command {
+	return NewNamedListCommand("list", resolve, getenv, short, cfg)
+}
+
+// NewNamedListCommand is NewListCommand under a verb other than `list`, for a
+// noun that exposes more than one paginated collection (e.g. `team audit`
+// alongside `team list`). Everything else — pagination, filters, output
+// contract — is identical.
+func NewNamedListCommand(use string, resolve CredResolver, getenv config.Getenv, short string, cfg ListConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   use,
 		Short: short,
 		Args:  cobra.NoArgs,
 	}

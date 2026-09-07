@@ -178,9 +178,10 @@ vibexp auth login                      # or: vibexp auth login --with-api-key
 vibexp whoami                          # who am I?
 vibexp team list                       # teams I belong to
 vibexp project list --team acme        # projects in a team (or set a default team on the context)
+vibexp team audit --team acme          # cross-team settings copies recorded for a team (platform v0.12.0+)
 ```
 
-All three honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
+All of them honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
 pagination flags `--limit` / `--page` / `--offset`. Adding a new resource
 command is mechanical — see [docs/adding-commands.md](docs/adding-commands.md).
 
