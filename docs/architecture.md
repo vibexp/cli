@@ -110,10 +110,19 @@ in-flight retry. A state matching *no* attempt still fails closed as a possible
 CSRF. A stderr notice precedes the second browser open. Any other callback error
 fails on the first attempt.
 
-`credentials.json` records the scopes the successful attempt actually carried,
-not the ones negotiated — so after a retry the entry stores none. That is what
-makes the next login register a fresh client instead of replaying an
-authorization request this server is known to refuse.
+`credentials.json` records the scopes the authorization server actually
+**granted** (`Token.Scopes`, from the RFC 6749 §5.1 `scope` response parameter),
+not the ones requested or negotiated. A response that omits `scope` means
+"identical to the request" per §5.1, so it falls back to the scopes that attempt
+carried — none after a no-scope retry. That is what makes the next login
+register a fresh client instead of replaying an authorization request this
+server is known to refuse; conversely, a server that narrows the grant, or that
+answers the no-scope retry with its own default grant, is now recorded as it
+really behaved rather than as the CLI assumed.
+
+Refresh responses deliberately leave the stored scopes alone: a refresh request
+carries no scope, so an omitted one would otherwise blank the set on every
+refresh.
 
 ## Global flags & precedence
 

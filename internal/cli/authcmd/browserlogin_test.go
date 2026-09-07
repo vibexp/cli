@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,6 +40,15 @@ type loginAS struct {
 	srv          *httptest.Server
 	rejectScoped bool
 	meStatus     int
+	// grantOverride, when non-empty, is echoed as the token response's `scope`
+	// regardless of what the authorization request asked for — a server that
+	// applies its own default grant. Empty means RFC 6749 §5.1 behaviour: echo
+	// back exactly the scope the request carried, omitting the member when it
+	// carried none.
+	grantOverride string
+
+	mu        sync.Mutex
+	lastScope string // scope the most recent authorization request carried
 }
 
 func newLoginAS(t *testing.T, rejectScoped bool, meStatus int) *loginAS {
@@ -70,10 +80,15 @@ func newLoginAS(t *testing.T, rejectScoped bool, meStatus int) *loginAS {
 			writeJSON(w, map[string]any{"error": "invalid_request"})
 			return
 		}
-		writeJSON(w, map[string]any{
+		body := map[string]any{
 			"access_token": fakeAccess, "refresh_token": fakeRefresh,
-			"token_type": "Bearer", "expires_in": 900, "scope": "mcp",
-		})
+			"token_type": "Bearer", "expires_in": 900,
+		}
+		// An omitted `scope` is RFC 6749 §5.1's "identical to the request".
+		if granted := as.grantedScope(); granted != "" {
+			body["scope"] = granted
+		}
+		writeJSON(w, body)
 	})
 	mux.HandleFunc("/api/v1/auth/me", func(w http.ResponseWriter, _ *http.Request) {
 		if as.meStatus != http.StatusOK {
@@ -91,6 +106,16 @@ func newLoginAS(t *testing.T, rejectScoped bool, meStatus int) *loginAS {
 	as.srv = httptest.NewServer(mux)
 	t.Cleanup(as.srv.Close)
 	return as
+}
+
+// grantedScope is what the token response should report as granted.
+func (as *loginAS) grantedScope() string {
+	if as.grantOverride != "" {
+		return as.grantOverride
+	}
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	return as.lastScope
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -111,6 +136,9 @@ func scriptedOpener(t *testing.T, as *loginAS, hc *http.Client) func(string) err
 			return err
 		}
 		q := u.Query()
+		as.mu.Lock()
+		as.lastScope = q.Get("scope")
+		as.mu.Unlock()
 		cb := q.Get("redirect_uri") + "?state=" + url.QueryEscape(q.Get("state"))
 		if as.rejectScoped && q.Get("scope") != "" {
 			cb += "&error=invalid_scope&error_description=" + url.QueryEscape("scope not granted")
@@ -140,7 +168,11 @@ type loginFixture struct {
 
 func newLoginFixture(t *testing.T, rejectScoped bool, meStatus int) *loginFixture {
 	t.Helper()
-	as := newLoginAS(t, rejectScoped, meStatus)
+	return newLoginFixtureAS(t, newLoginAS(t, rejectScoped, meStatus))
+}
+
+func newLoginFixtureAS(t *testing.T, as *loginAS) *loginFixture {
+	t.Helper()
 	hc := as.srv.Client()
 
 	prev := openBrowser
@@ -269,4 +301,47 @@ func TestRunBrowserLoginRESTRejectionIsAuthErrorAndSavesNothing(t *testing.T) {
 		t.Errorf("no credential may be written when the token is rejected, got %+v", e)
 	}
 	assertStdoutEmpty(t, f)
+}
+
+// --- what gets persisted is the GRANT, not the request (issue #64) ---
+
+func TestRunBrowserLoginPersistsNarrowedGrant(t *testing.T) {
+	as := newLoginAS(t, false, http.StatusOK)
+	// The request will carry "mcp"; the server grants strictly less.
+	as.grantOverride = "openid"
+	f := newLoginFixtureAS(t, as)
+	if err := f.run(); err != nil {
+		t.Fatalf("runBrowserLogin: %v", err)
+	}
+
+	e := f.savedEntry(t)
+	if len(e.Scopes) != 1 || e.Scopes[0] != "openid" {
+		t.Errorf("Scopes = %v, want [openid] — what the server granted, not what we asked for", e.Scopes)
+	}
+	// And the correction that follows: the stored client no longer covers mcp,
+	// so the next login re-registers instead of replaying a narrowed grant.
+	if got := reusableClientID(f.store, fakeContext, []string{"mcp"}); got != "" {
+		t.Errorf("reusableClientID = %q, want %q — a narrowed grant must force re-registration", got, "")
+	}
+}
+
+// A server that answers the no-scope retry with its own default grant has, in
+// fact, granted that scope. Recording it — and therefore reusing the client
+// next time — is the correction #64 asks for, not a regression of #65's
+// re-registration behaviour, which still holds when the server echoes nothing.
+func TestRunBrowserLoginRetryRecordsAServerDefaultGrant(t *testing.T) {
+	as := newLoginAS(t, true, http.StatusOK)
+	as.grantOverride = "mcp"
+	f := newLoginFixtureAS(t, as)
+	if err := f.run(); err != nil {
+		t.Fatalf("runBrowserLogin: %v", err)
+	}
+
+	e := f.savedEntry(t)
+	if len(e.Scopes) != 1 || e.Scopes[0] != "mcp" {
+		t.Errorf("Scopes = %v, want [mcp] — the server's default grant is still a grant", e.Scopes)
+	}
+	if got := reusableClientID(f.store, fakeContext, []string{"mcp"}); got != fakeClientID {
+		t.Errorf("reusableClientID = %q, want %q — the client did get mcp, so reuse is correct", got, fakeClientID)
+	}
 }

@@ -23,6 +23,12 @@ type Token struct {
 	RefreshToken string
 	TokenType    string
 	Expiry       time.Time
+	// Scopes are the scopes the authorization server actually GRANTED, from the
+	// RFC 6749 §5.1 `scope` response parameter — not the ones requested. When
+	// the response omits it, §5.1 defines that as "identical to the request", so
+	// this falls back to the scopes that request carried. Callers persist this
+	// rather than what they asked for, because a server may narrow the grant.
+	Scopes []string
 }
 
 // Valid reports whether the access token is present and not within leeway of
@@ -52,20 +58,37 @@ type tokenErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+// CodeExchange describes one authorization-code exchange. It is a struct rather
+// than a parameter list because the call carries seven interchangeable strings,
+// and at that width a transposed pair (redirect_uri and resource, say) compiles
+// cleanly and fails only against a live server.
+type CodeExchange struct {
+	TokenEndpoint string
+	ClientID      string
+	Code          string
+	Verifier      string // PKCE code_verifier
+	RedirectURI   string
+	Resource      string // RFC 8707 resource indicator; empty omits it
+	// RequestedScopes are the scopes the authorization request carried. They
+	// are the RFC 6749 §5.1 fallback for Token.Scopes when the token response
+	// omits `scope`.
+	RequestedScopes []string
+}
+
 // ExchangeCode swaps an authorization code for tokens (with PKCE verifier and
 // RFC 8707 resource indicator).
-func ExchangeCode(ctx context.Context, hc *http.Client, tokenEndpoint, clientID, code, verifier, redirectURI, resource string) (*Token, error) {
+func ExchangeCode(ctx context.Context, hc *http.Client, ex CodeExchange) (*Token, error) {
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
-		"code":          {code},
-		"redirect_uri":  {redirectURI},
-		"client_id":     {clientID},
-		"code_verifier": {verifier},
+		"code":          {ex.Code},
+		"redirect_uri":  {ex.RedirectURI},
+		"client_id":     {ex.ClientID},
+		"code_verifier": {ex.Verifier},
 	}
-	if resource != "" {
-		form.Set("resource", resource)
+	if ex.Resource != "" {
+		form.Set("resource", ex.Resource)
 	}
-	return postToken(ctx, hc, tokenEndpoint, form)
+	return postToken(ctx, hc, ex.TokenEndpoint, form, ex.RequestedScopes)
 }
 
 // Refresh exchanges a refresh token for a new token set. A rotated server
@@ -79,11 +102,15 @@ func Refresh(ctx context.Context, hc *http.Client, tokenEndpoint, clientID, refr
 	if resource != "" {
 		form.Set("resource", resource)
 	}
-	return postToken(ctx, hc, tokenEndpoint, form)
+	// A refresh request carries no scope of its own, so there is nothing for an
+	// omitted response `scope` to fall back to: Token.Scopes is then nil, and
+	// the caller keeps whatever the authorization grant recorded.
+	return postToken(ctx, hc, tokenEndpoint, form, nil)
 }
 
 // postToken performs the token endpoint POST and maps the response.
-func postToken(ctx context.Context, hc *http.Client, tokenEndpoint string, form url.Values) (*Token, error) {
+// requestedScopes is the RFC 6749 §5.1 fallback for an omitted `scope`.
+func postToken(ctx context.Context, hc *http.Client, tokenEndpoint string, form url.Values, requestedScopes []string) (*Token, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
@@ -121,6 +148,12 @@ func postToken(ctx context.Context, hc *http.Client, tokenEndpoint string, form 
 		AccessToken:  tr.AccessToken,
 		RefreshToken: tr.RefreshToken,
 		TokenType:    tr.TokenType,
+		Scopes:       requestedScopes,
+	}
+	// A present `scope` is authoritative and may narrow the request; an absent
+	// one means "identical to the request", which is the fallback above.
+	if strings.TrimSpace(tr.Scope) != "" {
+		tok.Scopes = strings.Fields(tr.Scope)
 	}
 	if tr.ExpiresIn > 0 {
 		tok.Expiry = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)

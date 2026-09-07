@@ -125,10 +125,10 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.Expiry,
-		// The scopes that actually worked, not the ones we asked for: after a
-		// no-scope retry these differ, and reusableClientID must reason about
-		// what the server accepted.
-		Scopes: flow.UsedScopes,
+		// What the authorization server GRANTED, not what we asked for: a
+		// server may narrow the grant, and after a no-scope retry the two
+		// differ. reusableClientID must reason about what the server accepted.
+		Scopes: token.Scopes,
 	}); err != nil {
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}

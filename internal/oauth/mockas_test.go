@@ -16,6 +16,9 @@ type asState struct {
 	counter      int
 	refreshCount int
 	validRefresh map[string]bool
+	// grantScope is echoed as the token response's `scope`. Empty omits the
+	// member, which RFC 6749 §5.1 defines as "identical to the request".
+	grantScope string
 }
 
 func (s *asState) issue() (access, refresh string) {
@@ -51,7 +54,7 @@ func mockAS(t *testing.T, st *asState) *httptest.Server {
 				return
 			}
 			access, refresh := st.issue()
-			writeToken(w, access, refresh)
+			writeToken(w, access, refresh, st.grantScope)
 		case "refresh_token":
 			rt := r.Form.Get("refresh_token")
 			if !st.validRefresh[rt] {
@@ -62,7 +65,7 @@ func mockAS(t *testing.T, st *asState) *httptest.Server {
 			delete(st.validRefresh, rt) // rotation: old token single-use
 			st.refreshCount++
 			access, refresh := st.issue()
-			writeToken(w, access, refresh)
+			writeToken(w, access, refresh, st.grantScope)
 		default:
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"error":"unsupported_grant_type"}`))
@@ -71,6 +74,14 @@ func mockAS(t *testing.T, st *asState) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-func writeToken(w http.ResponseWriter, access, refresh string) {
-	fmt.Fprintf(w, `{"access_token":%q,"refresh_token":%q,"token_type":"Bearer","expires_in":900,"scope":"mcp"}`, access, refresh)
+// writeToken writes an RFC 6749 §5.1 success body. An empty grantedScope OMITS
+// the `scope` member entirely, which §5.1 defines as "identical to the request"
+// — the case Token.Scopes must fall back on.
+func writeToken(w http.ResponseWriter, access, refresh, grantedScope string) {
+	scopeMember := ""
+	if grantedScope != "" {
+		scopeMember = fmt.Sprintf(`,"scope":%q`, grantedScope)
+	}
+	fmt.Fprintf(w, `{"access_token":%q,"refresh_token":%q,"token_type":"Bearer","expires_in":900%s}`,
+		access, refresh, scopeMember)
 }
