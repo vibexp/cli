@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -71,6 +72,32 @@ type Flow struct {
 	// attempt, so the handler reads the state nonce and result channel from
 	// here rather than closing over one attempt's values.
 	cur atomic.Pointer[attempt]
+
+	// supersededMu guards superseded, the state nonces of attempts this Run has
+	// retired. Written by runOnce, read by the handler goroutine. Run makes at
+	// most two attempts, so the set holds at most one entry and needs no
+	// eviction.
+	supersededMu sync.Mutex
+	superseded   map[string]struct{}
+}
+
+// supersede retires a state nonce: a callback carrying it belongs to an attempt
+// this Run has already abandoned.
+func (f *Flow) supersede(state string) {
+	f.supersededMu.Lock()
+	defer f.supersededMu.Unlock()
+	if f.superseded == nil {
+		f.superseded = make(map[string]struct{}, 1)
+	}
+	f.superseded[state] = struct{}{}
+}
+
+// isSuperseded reports whether state belongs to an attempt this Run retired.
+func (f *Flow) isSuperseded(state string) bool {
+	f.supersededMu.Lock()
+	defer f.supersededMu.Unlock()
+	_, ok := f.superseded[state]
+	return ok
 }
 
 // attempt is the per-authorization-request state the long-lived callback
@@ -93,6 +120,9 @@ type callbackResult struct {
 // retry reuses the same listener, port, redirect URI and client_id — the
 // redirect URI is pinned by the dynamic client registration, so re-binding
 // would mean re-registering — but generates a fresh state nonce and PKCE pair.
+// A callback arriving for the abandoned first attempt is ignored (neutral page,
+// nothing delivered) rather than treated as CSRF, so reloading the stale
+// browser tab cannot abort the retry.
 func (f *Flow) Run(ctx context.Context) (*Token, error) {
 	srv := &http.Server{
 		Handler:           f.callbackHandler(),
@@ -142,6 +172,11 @@ func (f *Flow) runOnce(ctx context.Context, scopes []string) (*Token, error) {
 	}
 
 	results := make(chan callbackResult, 1)
+	// Retire the outgoing attempt's state before the new one goes live, so a
+	// replay of the old browser tab is recognised as stale rather than as CSRF.
+	if prev := f.cur.Load(); prev != nil {
+		f.supersede(prev.state)
+	}
 	f.cur.Store(&attempt{state: state, results: results})
 
 	if err := f.OpenBrowser(f.authorizeURL(pkce, state, scopes)); err != nil {
@@ -209,11 +244,20 @@ func (f *Flow) callbackHandler() http.Handler {
 			return
 		}
 		q := r.URL.Query()
-		// A late callback from a superseded attempt carries that attempt's
-		// state and must not resolve this one. Only enforced when the server
-		// echoed a state: not every server echoes it on the error path, and
-		// hiding a real error behind "state mismatch" would be worse.
+		// A state that is not the live attempt's is only enforced when the
+		// server echoed one: not every server echoes it on the error path, and
+		// hiding a real error behind "state mismatch" would be worse. Checked
+		// ahead of the error branch and the success path alike, since the stale
+		// tab is sitting on an error callback.
 		if s := q.Get("state"); s != "" && s != cur.state {
+			if f.isSuperseded(s) {
+				// The user reloaded the first browser tab while the retry is in
+				// flight. Not CSRF — this process minted that nonce itself — so
+				// say the window is inactive and resolve nothing.
+				writePage(w, "This authorization window is no longer active. You may close it.")
+				return
+			}
+			// Anything else still fails closed.
 			finish(w, cur.results, "", errors.New("state mismatch on callback (possible CSRF)"),
 				"Authorization could not be verified. You may close this window.")
 			return
@@ -240,10 +284,15 @@ func (f *Flow) callbackHandler() http.Handler {
 	return mux
 }
 
-// finish writes a minimal HTML page and delivers the result exactly once.
-func finish(w http.ResponseWriter, results chan<- callbackResult, code string, err error, msg string) {
+// writePage writes the minimal HTML page every callback outcome renders.
+func writePage(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, "<!doctype html><html><body style=\"font-family:sans-serif\"><p>%s</p></body></html>", msg)
+}
+
+// finish writes a minimal HTML page and delivers the result exactly once.
+func finish(w http.ResponseWriter, results chan<- callbackResult, code string, err error, msg string) {
+	writePage(w, msg)
 	select {
 	case results <- callbackResult{code: code, err: err}:
 	default: // a result was already delivered; ignore duplicate hits
