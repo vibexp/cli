@@ -14,16 +14,36 @@ type Pagination struct {
 	Limit  int
 	Page   int
 	Offset int
+	// All walks every page and renders the merged items (see FetchAllPages).
+	All bool
 }
 
-// AddPaginationFlags binds --limit/--page/--offset to a Pagination and returns
-// it. A zero value means "unset" (the flag is omitted from the request).
+// LimitHelp is the --limit help shared by every paginated command. The server
+// is authoritative on the maximum (it differs per endpoint), so it is
+// documented here rather than enforced locally.
+const LimitHelp = "maximum items per page (server max 100)"
+
+// AddPaginationFlags binds --limit/--page/--offset/--all to a Pagination and
+// returns it. A zero value means "unset" (the flag is omitted from the request).
 func AddPaginationFlags(cmd *cobra.Command) *Pagination {
 	p := &Pagination{}
-	cmd.Flags().IntVar(&p.Limit, "limit", 0, "maximum items per page")
+	cmd.Flags().IntVar(&p.Limit, "limit", 0, LimitHelp)
 	cmd.Flags().IntVar(&p.Page, "page", 0, "page number (1-based)")
 	cmd.Flags().IntVar(&p.Offset, "offset", 0, "number of items to skip")
+	cmd.Flags().BoolVar(&p.All, "all", false, "fetch every page and output the merged items")
 	return p
+}
+
+// Validate rejects flag combinations the page walk cannot honour: --all walks
+// from page 1 itself, so a fixed --page or --offset contradicts it.
+func (p *Pagination) Validate() error {
+	if p.All && p.Page > 0 {
+		return exitcode.Usage("--all and --page are mutually exclusive")
+	}
+	if p.All && p.Offset > 0 {
+		return exitcode.Usage("--all and --offset are mutually exclusive")
+	}
+	return nil
 }
 
 // ApplyToPath merges the set pagination params into a path's query string.

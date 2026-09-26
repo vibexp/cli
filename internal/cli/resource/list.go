@@ -1,11 +1,14 @@
 package resource
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/spf13/cobra"
 
+	"github.com/vibexp/cli/internal/api"
 	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/exitcode"
 	"github.com/vibexp/cli/internal/output"
 )
 
@@ -55,6 +58,9 @@ type ListConfig struct {
 // path, apply pagination, fetch, and render. A list command's RunE is just a
 // call to this with its ListConfig and Pagination.
 func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg ListConfig, p *Pagination) error {
+	if err := p.Validate(); err != nil {
+		return err
+	}
 	ctx := cmd.Context()
 	rt, err := Runtime(ctx)
 	if err != nil {
@@ -78,9 +84,36 @@ func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg
 	if err != nil {
 		return err
 	}
+	if p.All {
+		return renderAll(cmd, rt, getenv, client, path, cfg.Spec)
+	}
 	body, err := FetchJSON(ctx, client, http.MethodGet, path)
 	if err != nil {
-		return err
+		return UsageOnBadRequest(err)
 	}
+	WarnIfPartial(cmd.ErrOrStderr(), body, "--page, --limit (max 100) or --all")
 	return Render(cmd, rt, getenv, body, &cfg.Spec)
+}
+
+// allRows is the row expression for --all output: FetchAllPages merges every
+// page's items into one bare array, so the endpoint's envelope key is gone.
+const allRows = ".[]"
+
+// renderAll walks every page of the list and renders the merged items as one
+// JSON array (same shape as a single page's items), tabulated with the list's
+// own columns.
+func renderAll(cmd *cobra.Command, rt *config.Runtime, getenv config.Getenv, client *api.RawClient, path string, spec output.TableSpec) error {
+	items, notList, err := FetchAllPages(cmd.Context(), client, path, nil)
+	if err != nil {
+		return UsageOnBadRequest(err)
+	}
+	if notList != nil {
+		return Render(cmd, rt, getenv, notList, &spec)
+	}
+	merged, err := json.Marshal(items)
+	if err != nil {
+		return exitcode.New(exitcode.RuntimeErr, err)
+	}
+	spec.Rows = allRows
+	return Render(cmd, rt, getenv, merged, &spec)
 }

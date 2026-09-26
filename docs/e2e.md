@@ -3,7 +3,8 @@
 The e2e suite (`e2e/`, build tag `e2e`) drives the **compiled `vibexp` binary**
 against a live VibeXP deployment. It is the automated form of the project's
 staging-verification policy: env-var auth, `whoami`/`team list`, one full
-memory CRUD lifecycle, `vibexp api` GET + `--paginate`, output contracts
+memory CRUD lifecycle, `vibexp api` GET + `--paginate`, a list over more than
+one page (stderr hint + `--all`), output contracts
 (`--format=json`, TSV piping, `--jq`), and exit-code assertions (0/2/4).
 
 The target deployment is addressed **only** through two environment variables,

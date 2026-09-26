@@ -185,6 +185,22 @@ All of them honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
 pagination flags `--limit` / `--page` / `--offset`. Adding a new resource
 command is mechanical — see [docs/adding-commands.md](docs/adding-commands.md).
 
+### Pagination
+
+A `list` returns **one page**. The server caps `--limit` at 100 per page (and
+rejects a larger value, surfaced as a usage error, exit 2). When the result
+spans more pages, a one-line hint goes to **stderr** — stdout stays the raw
+page, so pipes are unaffected:
+
+```bash
+vibexp artifact list                 # stderr: showing page 1 of 6 (10 of 59); use --page, --limit (max 100) or --all
+vibexp artifact list --all           # every page, merged into one JSON array of items
+vibexp artifact list --all --limit 100 --format=json --jq '.[].slug'
+```
+
+`--all` cannot be combined with `--page` or `--offset`. `vibexp search` shows
+the same hint (it has no `--all`; use `--page`).
+
 ### Filtering lists
 
 `list` filters are applied **server-side** and compose with each other and with
