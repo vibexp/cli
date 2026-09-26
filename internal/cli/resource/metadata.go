@@ -103,17 +103,6 @@ func (f *MetadataFlags) Build(in io.Reader) (map[string]any, error) {
 	return out, nil
 }
 
-// Merge overlays the flags onto current (the resource's existing metadata,
-// possibly nil) and removes the unset keys; with --replace-metadata current is
-// ignored. current is not modified.
-func (f *MetadataFlags) Merge(current map[string]any, in io.Reader) (map[string]any, error) {
-	given, err := f.Build(in)
-	if err != nil {
-		return nil, err
-	}
-	return f.overlay(current, given), nil
-}
-
 // ForUpdate returns the metadata object an update should send, reading the
 // resource at itemPath first unless --replace-metadata is given. The flags are
 // validated before any request, so malformed input never reaches the server.
@@ -140,11 +129,8 @@ func (f *MetadataFlags) ForUpdate(ctx context.Context, client *api.RawClient, it
 	return f.overlay(item.Metadata, given), nil
 }
 
-// overlay applies already-built flag values to current.
+// overlay applies already-built flag values to current (merge mode only).
 func (f *MetadataFlags) overlay(current, given map[string]any) map[string]any {
-	if f.replace {
-		return given
-	}
 	out := make(map[string]any, len(current)+len(given))
 	for k, v := range current {
 		out[k] = v

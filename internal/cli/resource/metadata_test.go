@@ -104,8 +104,13 @@ func TestMetadataFlagsBuildRejects(t *testing.T) {
 	}
 }
 
-func TestMetadataFlagsMerge(t *testing.T) {
-	current := map[string]any{"a": "1", "b": "2"}
+func TestMetadataFlagsForUpdateMerge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"i-1","metadata":{"a":"1","b":"2"}}`))
+	}))
+	defer srv.Close()
+	client := rawClient(t, srv)
 	tests := []struct {
 		name string
 		args []string
@@ -114,26 +119,20 @@ func TestMetadataFlagsMerge(t *testing.T) {
 		{"overlay keeps other keys", []string{"--metadata", "b=3"}, `{"a":"1","b":"3"}`},
 		{"unset removes only that key", []string{"--unset-metadata", "a"}, `{"b":"2"}`},
 		{"unset absent key is a no-op", []string{"--unset-metadata", "zz"}, `{"a":"1","b":"2"}`},
+		{"json and pairs overlay", []string{"--metadata-json", `{"n":2}`, "--metadata", "c=x"}, `{"a":"1","b":"2","c":"x","n":2}`},
 		{"replace drops the rest", []string{"--replace-metadata", "--metadata", "c=1"}, `{"c":"1"}`},
 		{"replace alone clears", []string{"--replace-metadata"}, `{}`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := metaFlags(t, true, tc.args...).Merge(current, strings.NewReader(""))
+			got, err := metaFlags(t, true, tc.args...).ForUpdate(context.Background(), client, "/item", strings.NewReader(""))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if s := asJSON(t, got); s != tc.want {
-				t.Errorf("Merge = %s, want %s", s, tc.want)
+				t.Errorf("ForUpdate = %s, want %s", s, tc.want)
 			}
 		})
-	}
-	if asJSON(t, current) != `{"a":"1","b":"2"}` {
-		t.Errorf("Merge mutated current: %v", current)
-	}
-	got, err := metaFlags(t, true, "--metadata", "x=1").Merge(nil, strings.NewReader(""))
-	if err != nil || asJSON(t, got) != `{"x":"1"}` {
-		t.Errorf("Merge(nil) = %v, %v", got, err)
 	}
 }
 
