@@ -237,3 +237,20 @@ func TestIsUUIDIsCanonicalOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestTeamLookupFailuresAreErrors(t *testing.T) {
+	garbled := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"teams":`))
+	}))
+	defer garbled.Close()
+	if _, err := Team(slugRuntime(t, garbled, "acme", "")); exitcode.FromError(err) != exitcode.RuntimeErr {
+		t.Errorf("an undecodable teams page should exit 1, got %v", err)
+	}
+
+	gone := httptest.NewServer(http.NotFoundHandler())
+	rt := slugRuntime(t, gone, "acme", "")
+	gone.Close() // the lookup request itself fails
+	if _, err := Team(rt); err == nil {
+		t.Error("an unreachable server should fail the lookup")
+	}
+}
