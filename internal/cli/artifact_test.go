@@ -24,37 +24,37 @@ type artifactCapture struct {
 
 func artifactServer(t *testing.T, cap *artifactCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/the-team/artifacts"
+	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/artifacts"
 	mux := http.NewServeMux()
 	mux.HandleFunc(base, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
 			cap.listQuery = r.URL.Query()
-			_, _ = w.Write([]byte(`{"artifacts":[{"id":"art-id","slug":"art-1","title":"Report","project_id":"p-1","updated_at":"2026-02-01T00:00:00Z"}],"page":1,"per_page":50,"total_count":1,"total_pages":1}`))
+			_, _ = w.Write([]byte(`{"artifacts":[{"id":"art-id","slug":"art-1","title":"Report","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","updated_at":"2026-02-01T00:00:00Z"}],"page":1,"per_page":50,"total_count":1,"total_pages":1}`))
 		case http.MethodPost:
 			_ = json.NewDecoder(r.Body).Decode(&cap.createBody)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"art-new","slug":"art-1","title":"Created","project_id":"p-1","updated_at":"2026-02-02T00:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"id":"art-new","slug":"art-1","title":"Created","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","updated_at":"2026-02-02T00:00:00Z"}`))
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
 	// Single item is addressed by project + slug.
-	mux.HandleFunc(base+"/p-1/art-1", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(base+"/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/art-1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
-			_, _ = w.Write([]byte(`{"id":"art-id","slug":"art-1","title":"Report","project_id":"p-1","updated_at":"2026-02-01T00:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"id":"art-id","slug":"art-1","title":"Report","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","updated_at":"2026-02-01T00:00:00Z"}`))
 		case http.MethodPut:
 			_ = json.NewDecoder(r.Body).Decode(&cap.updateBody)
-			_, _ = w.Write([]byte(`{"id":"art-id","slug":"art-1","title":"Report v2","project_id":"p-1","updated_at":"2026-02-03T00:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"id":"art-id","slug":"art-1","title":"Report v2","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","updated_at":"2026-02-03T00:00:00Z"}`))
 		case http.MethodDelete:
 			cap.deleted = "art-1"
 			w.WriteHeader(http.StatusNoContent)
 		}
 	})
-	mux.HandleFunc(base+"/p-1/nope", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(base+"/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/nope", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"title":"Not Found","status":404,"detail":"artifact not found","code":"not_found","request_id":"req-art-404"}`))
@@ -66,7 +66,7 @@ func TestArtifactCreateFromFile(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	dir := t.TempDir()
 	f := dir + "/report.md"
@@ -74,11 +74,11 @@ func TestArtifactCreateFromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _, code := runAuth(t, cfg, cs, nil, "", "artifact", "create", "art-1",
-		"--project", "p-1", "--title", "Report", "--body-file", f)
+		"--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--title", "Report", "--body-file", f)
 	if code != 0 {
 		t.Fatalf("create exit = %d, out=%q", code, out)
 	}
-	if cap.createBody["project_id"] != "p-1" || cap.createBody["slug"] != "art-1" ||
+	if cap.createBody["project_id"] != "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61" || cap.createBody["slug"] != "art-1" ||
 		cap.createBody["title"] != "Report" || cap.createBody["content"] != "# report body" {
 		t.Errorf("create body wrong: %+v", cap.createBody)
 	}
@@ -91,18 +91,18 @@ func TestArtifactCreateValidation(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Missing project → exit 2.
 	if _, _, code := runAuth(t, cfg, cs, nil, "x", "artifact", "create", "art-1", "--title", "Report", "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing project exit = %d, want 2", code)
 	}
 	// Missing content → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "artifact", "create", "art-1", "--project", "p-1", "--title", "Report"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "artifact", "create", "art-1", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--title", "Report"); code != exitcode.UsageErr {
 		t.Errorf("missing content exit = %d, want 2", code)
 	}
 	// Missing title → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "x", "artifact", "create", "art-1", "--project", "p-1", "--body-file", "-"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "x", "artifact", "create", "art-1", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing title exit = %d, want 2", code)
 	}
 }
@@ -114,16 +114,16 @@ func TestArtifactProjectResolutionMatrix(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Flag.
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "get", "art-1"); code != 0 {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "get", "art-1"); code != 0 {
 		t.Errorf("get with --project flag exit = %d, want 0", code)
 	}
 	// Env.
 	env := func(k string) string {
 		if k == config.EnvProject {
-			return "p-1"
+			return "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61"
 		}
 		return ""
 	}
@@ -144,13 +144,13 @@ func TestArtifactGetNotFound(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "get", "art-1")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "get", "art-1")
 	if code != 0 || !strings.Contains(out, "art-1") {
 		t.Fatalf("get exit=%d out=%q", code, out)
 	}
-	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "get", "nope")
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "get", "nope")
 	if code != exitcode.RuntimeErr {
 		t.Errorf("404 exit = %d, want 1", code)
 	}
@@ -163,16 +163,16 @@ func TestArtifactUpdate(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "update", "art-1", "--title", "Report v2")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "update", "art-1", "--title", "Report v2")
 	if code != 0 {
 		t.Fatalf("update exit = %d, out=%q", code, out)
 	}
 	if cap.updateBody["title"] != "Report v2" {
 		t.Errorf("update body wrong: %+v", cap.updateBody)
 	}
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "update", "art-1"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "update", "art-1"); code != exitcode.UsageErr {
 		t.Errorf("empty update exit = %d, want 2", code)
 	}
 }
@@ -181,15 +181,15 @@ func TestArtifactDelete(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "delete", "art-1"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "delete", "art-1"); code != exitcode.UsageErr {
 		t.Errorf("delete without --yes exit = %d, want 2", code)
 	}
 	if cap.deleted != "" {
 		t.Error("must not delete without confirmation")
 	}
-	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "artifact", "delete", "art-1", "--yes")
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "artifact", "delete", "art-1", "--yes")
 	if code != 0 {
 		t.Fatalf("delete --yes exit = %d", code)
 	}
@@ -205,14 +205,14 @@ func TestArtifactListPaginationAndProjectFilter(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "p-9",
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
 		"artifact", "list", "--limit", "3")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
 	}
-	if cap.listQuery.Get("project_id") != "p-9" || cap.listQuery.Get("limit") != "3" {
+	if cap.listQuery.Get("project_id") != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" || cap.listQuery.Get("limit") != "3" {
 		t.Errorf("list query wrong: %v", cap.listQuery)
 	}
 	if !strings.Contains(out, `"slug":"art-1"`) {
@@ -224,7 +224,7 @@ func TestArtifactListMetadataFilter(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
 		"artifact", "list", "--metadata", "env=prod")
@@ -242,9 +242,9 @@ func TestArtifactListStaleFilter(t *testing.T) {
 	var cap artifactCapture
 	srv := artifactServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "p-9",
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
 		"artifact", "list", "--stale")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
@@ -252,7 +252,7 @@ func TestArtifactListStaleFilter(t *testing.T) {
 	if got := cap.listQuery.Get("freshness"); got != "stale" {
 		t.Errorf("freshness param = %q, want stale", got)
 	}
-	if got := cap.listQuery.Get("project_id"); got != "p-9" {
-		t.Errorf("project_id = %q, want p-9 (the filter must not drop it)", got)
+	if got := cap.listQuery.Get("project_id"); got != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" {
+		t.Errorf("project_id = %q, want 9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9 (the filter must not drop it)", got)
 	}
 }

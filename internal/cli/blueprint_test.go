@@ -23,7 +23,7 @@ type blueprintCapture struct {
 
 func blueprintServer(t *testing.T, cap *blueprintCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/the-team/blueprints"
+	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints"
 	mux := http.NewServeMux()
 	mux.HandleFunc(base, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -40,7 +40,7 @@ func blueprintServer(t *testing.T, cap *blueprintCapture) *httptest.Server {
 		}
 	})
 	// Single item is addressed by project + slug.
-	mux.HandleFunc(base+"/p-1/bp-1", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(base+"/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/bp-1", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
@@ -53,7 +53,7 @@ func blueprintServer(t *testing.T, cap *blueprintCapture) *httptest.Server {
 			w.WriteHeader(http.StatusNoContent)
 		}
 	})
-	mux.HandleFunc(base+"/p-1/nope", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(base+"/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/nope", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"title":"Not Found","status":404,"detail":"blueprint not found","code":"not_found","request_id":"req-bp-404"}`))
@@ -65,7 +65,7 @@ func TestBlueprintCreateFromFile(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	dir := t.TempDir()
 	f := dir + "/spec.md"
@@ -73,11 +73,11 @@ func TestBlueprintCreateFromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _, code := runAuth(t, cfg, cs, nil, "", "blueprint", "create", "bp-1",
-		"--project", "p-1", "--title", "Rules", "--body-file", f)
+		"--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--title", "Rules", "--body-file", f)
 	if code != 0 {
 		t.Fatalf("create exit = %d, out=%q", code, out)
 	}
-	if cap.createBody["project_id"] != "p-1" || cap.createBody["slug"] != "bp-1" ||
+	if cap.createBody["project_id"] != "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61" || cap.createBody["slug"] != "bp-1" ||
 		cap.createBody["title"] != "Rules" || cap.createBody["content"] != "do the thing" {
 		t.Errorf("create body wrong: %+v", cap.createBody)
 	}
@@ -90,18 +90,18 @@ func TestBlueprintCreateValidation(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Missing project → exit 2.
 	if _, _, code := runAuth(t, cfg, cs, nil, "x", "blueprint", "create", "bp-1", "--title", "Rules", "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing project exit = %d, want 2", code)
 	}
 	// Missing content → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "blueprint", "create", "bp-1", "--project", "p-1", "--title", "Rules"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "blueprint", "create", "bp-1", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--title", "Rules"); code != exitcode.UsageErr {
 		t.Errorf("missing content exit = %d, want 2", code)
 	}
 	// Missing title → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "x", "blueprint", "create", "bp-1", "--project", "p-1", "--body-file", "-"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "x", "blueprint", "create", "bp-1", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing title exit = %d, want 2", code)
 	}
 }
@@ -110,17 +110,17 @@ func TestBlueprintGetRequiresProjectAndNotFound(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// No project → exit 2.
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "blueprint", "get", "bp-1"); code != exitcode.UsageErr {
 		t.Errorf("get without project exit = %d, want 2", code)
 	}
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "get", "bp-1")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "get", "bp-1")
 	if code != 0 || !strings.Contains(out, "bp-1") {
 		t.Fatalf("get exit=%d out=%q", code, out)
 	}
-	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "get", "nope")
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "get", "nope")
 	if code != exitcode.RuntimeErr {
 		t.Errorf("404 exit = %d, want 1", code)
 	}
@@ -133,9 +133,9 @@ func TestBlueprintUpdate(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "update", "bp-1", "--title", "Rules v2")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "update", "bp-1", "--title", "Rules v2")
 	if code != 0 {
 		t.Fatalf("update exit = %d, out=%q", code, out)
 	}
@@ -143,7 +143,7 @@ func TestBlueprintUpdate(t *testing.T) {
 		t.Errorf("update body wrong: %+v", cap.updateBody)
 	}
 	// No fields → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "update", "bp-1"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "update", "bp-1"); code != exitcode.UsageErr {
 		t.Errorf("empty update exit = %d, want 2", code)
 	}
 }
@@ -152,16 +152,16 @@ func TestBlueprintDelete(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Non-interactive without --yes → exit 2, no delete.
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "delete", "bp-1"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "delete", "bp-1"); code != exitcode.UsageErr {
 		t.Errorf("delete without --yes exit = %d, want 2", code)
 	}
 	if cap.deleted != "" {
 		t.Error("must not delete without confirmation")
 	}
-	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "delete", "bp-1", "--yes")
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "delete", "bp-1", "--yes")
 	if code != 0 {
 		t.Fatalf("delete --yes exit = %d", code)
 	}
@@ -177,14 +177,14 @@ func TestBlueprintListPaginationAndProjectFilter(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "p-9",
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
 		"blueprint", "list", "--limit", "3")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
 	}
-	if cap.listQuery.Get("project_id") != "p-9" || cap.listQuery.Get("limit") != "3" {
+	if cap.listQuery.Get("project_id") != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" || cap.listQuery.Get("limit") != "3" {
 		t.Errorf("list query wrong: %v", cap.listQuery)
 	}
 	if !strings.Contains(out, `"slug":"bp-1"`) {
@@ -196,7 +196,7 @@ func TestBlueprintListMetadataFilter(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
 		"blueprint", "list", "--metadata", "spec.type=api")
@@ -214,9 +214,9 @@ func TestBlueprintListStaleFilter(t *testing.T) {
 	var cap blueprintCapture
 	srv := blueprintServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "p-9",
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
 		"blueprint", "list", "--stale")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
@@ -224,7 +224,7 @@ func TestBlueprintListStaleFilter(t *testing.T) {
 	if got := cap.listQuery.Get("freshness"); got != "stale" {
 		t.Errorf("freshness param = %q, want stale", got)
 	}
-	if got := cap.listQuery.Get("project_id"); got != "p-9" {
-		t.Errorf("project_id = %q, want p-9 (the filter must not drop it)", got)
+	if got := cap.listQuery.Get("project_id"); got != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" {
+		t.Errorf("project_id = %q, want 9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9 (the filter must not drop it)", got)
 	}
 }

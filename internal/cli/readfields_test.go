@@ -16,24 +16,24 @@ func readFieldsServer(t *testing.T) *httptest.Server {
 	mux := http.NewServeMux()
 
 	// Blueprint list — must NOT gain the detail columns.
-	mux.HandleFunc("/api/v1/the-team/blueprints", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"blueprints":[{"slug":"imported","title":"Imported BP","type":"cursor","path":".cursor/rules/x.md","updated_at":"2026-07-20T00:00:00Z"}],"page":1,"per_page":50,"total_count":1,"total_pages":1}`))
 	})
 	// Imported blueprint detail — has path + source provenance.
-	mux.HandleFunc("/api/v1/the-team/blueprints/p-1/imported", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/imported", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"slug":"imported","title":"Imported BP","type":"cursor","path":".cursor/rules/x.md","source":{"repo":"https://github.com/vibexp/vibexp","commit_sha":"6706920221608abcdef","imported_at":"2026-07-20T00:00:00Z"},"updated_at":"2026-07-20T00:00:00Z"}`))
 	})
 	// Authored blueprint detail — path present, no source.
-	mux.HandleFunc("/api/v1/the-team/blueprints/p-1/authored", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/authored", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"slug":"authored","title":"Authored BP","type":"claude","path":"CLAUDE.md","updated_at":"2026-07-21T00:00:00Z"}`))
 	})
 	// Memory detail — carries related + similar.
-	mux.HandleFunc("/api/v1/the-team/memories/m-1", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/memories/m-1", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"m-1","project_id":"p-1","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"hi","related":[{"relation_id":"r-1","relation_type":"governed-by","direction":"outgoing","origin":"human","status":"confirmed","resource_type":"blueprint","resource_id":"b-1","title":"Go standards"}],"similar":[{"id":"m-9","type":"memory","title":"why pgvector","score":0.82}]}`))
+		_, _ = w.Write([]byte(`{"id":"m-1","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"hi","related":[{"relation_id":"r-1","relation_type":"governed-by","direction":"outgoing","origin":"human","status":"confirmed","resource_type":"blueprint","resource_id":"b-1","title":"Go standards"}],"similar":[{"id":"m-9","type":"memory","title":"why pgvector","score":0.82}]}`))
 	})
 	return httptest.NewServer(mux)
 }
@@ -41,10 +41,10 @@ func readFieldsServer(t *testing.T) *httptest.Server {
 func TestBlueprintDetailColumns(t *testing.T) {
 	srv := readFieldsServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Imported blueprint get shows PATH + source provenance.
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "get", "imported")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "get", "imported")
 	if code != 0 {
 		t.Fatalf("get imported exit = %d, out=%q", code, out)
 	}
@@ -60,7 +60,7 @@ func TestBlueprintDetailColumns(t *testing.T) {
 	}
 
 	// Authored blueprint: PATH present, source columns empty (no panic/error).
-	out, _, code = runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "get", "authored")
+	out, _, code = runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "get", "authored")
 	if code != 0 {
 		t.Fatalf("get authored exit = %d, out=%q", code, out)
 	}
@@ -72,9 +72,9 @@ func TestBlueprintDetailColumns(t *testing.T) {
 func TestBlueprintListStaysCompact(t *testing.T) {
 	srv := readFieldsServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", "blueprint", "list")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "blueprint", "list")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
 	}
@@ -88,7 +88,7 @@ func TestBlueprintListStaysCompact(t *testing.T) {
 func TestMemoryGetShowRelations(t *testing.T) {
 	srv := readFieldsServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Without the flag: no summary, stdout carries the resource.
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "memory", "get", "m-1")
@@ -121,7 +121,7 @@ func TestMemoryGetShowRelations(t *testing.T) {
 func TestMemoryGetShowRelationsJSONUnchanged(t *testing.T) {
 	srv := readFieldsServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// The JSON contract is byte-for-byte identical with and without the flag.
 	base, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "memory", "get", "m-1")
@@ -160,37 +160,37 @@ func freshnessServer(t *testing.T) *httptest.Server {
 		_, _ = w.Write([]byte(body))
 	}
 
-	memStale := `{"id":"m-stale","project_id":"p-1","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"aging note",` + staleState + `}`
-	memFresh := `{"id":"m-fresh","project_id":"p-1","status":"active","updated_at":"2026-02-02T00:00:00Z","text":"current note"}`
-	mux.HandleFunc("/api/v1/the-team/memories", func(w http.ResponseWriter, _ *http.Request) {
+	memStale := `{"id":"m-stale","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"aging note",` + staleState + `}`
+	memFresh := `{"id":"m-fresh","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-02T00:00:00Z","text":"current note"}`
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/memories", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, `{"memories":[`+memStale+`,`+memFresh+`],`+page+`}`)
 	})
-	mux.HandleFunc("/api/v1/the-team/memories/m-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, memStale) })
-	mux.HandleFunc("/api/v1/the-team/memories/m-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, memFresh) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/memories/m-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, memStale) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/memories/m-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, memFresh) })
 
 	promptStale := `{"slug":"p-stale","name":"Aging prompt","status":"published","updated_at":"2026-02-01T00:00:00Z",` + staleState + `}`
 	promptFresh := `{"slug":"p-fresh","name":"Current prompt","status":"published","updated_at":"2026-02-02T00:00:00Z"}`
-	mux.HandleFunc("/api/v1/the-team/prompts", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/prompts", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, `{"prompts":[`+promptStale+`,`+promptFresh+`],`+page+`}`)
 	})
-	mux.HandleFunc("/api/v1/the-team/prompts/p-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, promptStale) })
-	mux.HandleFunc("/api/v1/the-team/prompts/p-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, promptFresh) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/prompts/p-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, promptStale) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/prompts/p-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, promptFresh) })
 
 	bpStale := `{"slug":"b-stale","title":"Aging BP","type":"claude","path":"CLAUDE.md","updated_at":"2026-02-01T00:00:00Z",` + staleState + `}`
 	bpFresh := `{"slug":"b-fresh","title":"Current BP","type":"claude","path":"AGENTS.md","updated_at":"2026-02-02T00:00:00Z"}`
-	mux.HandleFunc("/api/v1/the-team/blueprints", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, `{"blueprints":[`+bpStale+`,`+bpFresh+`],`+page+`}`)
 	})
-	mux.HandleFunc("/api/v1/the-team/blueprints/p-1/b-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, bpStale) })
-	mux.HandleFunc("/api/v1/the-team/blueprints/p-1/b-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, bpFresh) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/b-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, bpStale) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/blueprints/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/b-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, bpFresh) })
 
-	artStale := `{"slug":"a-stale","title":"Aging report","project_id":"p-1","updated_at":"2026-02-01T00:00:00Z",` + staleState + `}`
-	artFresh := `{"slug":"a-fresh","title":"Current report","project_id":"p-1","updated_at":"2026-02-02T00:00:00Z"}`
-	mux.HandleFunc("/api/v1/the-team/artifacts", func(w http.ResponseWriter, _ *http.Request) {
+	artStale := `{"slug":"a-stale","title":"Aging report","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","updated_at":"2026-02-01T00:00:00Z",` + staleState + `}`
+	artFresh := `{"slug":"a-fresh","title":"Current report","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","updated_at":"2026-02-02T00:00:00Z"}`
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/artifacts", func(w http.ResponseWriter, _ *http.Request) {
 		write(w, `{"artifacts":[`+artStale+`,`+artFresh+`],`+page+`}`)
 	})
-	mux.HandleFunc("/api/v1/the-team/artifacts/p-1/a-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, artStale) })
-	mux.HandleFunc("/api/v1/the-team/artifacts/p-1/a-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, artFresh) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/artifacts/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/a-stale", func(w http.ResponseWriter, _ *http.Request) { write(w, artStale) })
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/artifacts/3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61/a-fresh", func(w http.ResponseWriter, _ *http.Request) { write(w, artFresh) })
 
 	return httptest.NewServer(mux)
 }
@@ -284,11 +284,11 @@ func assertNoFreshnessLeak(t *testing.T, out string, row []string) {
 func TestFreshnessListColumn(t *testing.T) {
 	srv := freshnessServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	for _, c := range freshnessCases {
 		t.Run(c.noun, func(t *testing.T) {
-			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "list")
+			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", c.noun, "list")
 			rows := rowsFrom(t, "list", out, code, 2)
 			if len(rows[0]) != len(rows[1]) {
 				t.Errorf("column count differs between stale (%d) and fresh (%d) rows: %q",
@@ -309,14 +309,14 @@ func TestFreshnessListColumn(t *testing.T) {
 func TestFreshnessDetailColumns(t *testing.T) {
 	srv := freshnessServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	for _, c := range freshnessCases {
 		t.Run(c.noun, func(t *testing.T) {
-			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "get", c.stale)
+			out, _, code := runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", c.noun, "get", c.stale)
 			assertStaleCells(t, rowsFrom(t, "get stale", out, code, 1)[0], c.staleCells...)
 
-			out, _, code = runAuth(t, cfg, cs, nil, "", "--project", "p-1", c.noun, "get", c.fresh)
+			out, _, code = runAuth(t, cfg, cs, nil, "", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", c.noun, "get", c.fresh)
 			assertNoFreshnessLeak(t, out, rowsFrom(t, "get fresh", out, code, 1)[0])
 		})
 	}
@@ -327,13 +327,13 @@ func TestFreshnessDetailColumns(t *testing.T) {
 func TestFreshnessJSONIsRawBody(t *testing.T) {
 	srv := freshnessServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "memory", "get", "m-stale")
 	if code != 0 {
 		t.Fatalf("json get exit = %d", code)
 	}
-	want := `{"id":"m-stale","project_id":"p-1","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"aging note",` + staleState + `}`
+	want := `{"id":"m-stale","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"aging note",` + staleState + `}`
 	if strings.TrimSpace(out) != want {
 		t.Errorf("json output is not the raw body:\n got=%q\nwant=%q", strings.TrimSpace(out), want)
 	}

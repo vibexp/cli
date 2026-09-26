@@ -20,7 +20,7 @@ type feedCapture struct {
 
 func feedServer(t *testing.T, cap *feedCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/the-team"
+	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01"
 	mux := http.NewServeMux()
 	mux.HandleFunc(base+"/feeds", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -71,7 +71,7 @@ func TestFeedList(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "feed", "list")
 	if code != 0 {
@@ -86,7 +86,7 @@ func TestFeedItems(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Missing --feed → exit 2.
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "feed", "items"); code != exitcode.UsageErr {
@@ -110,7 +110,7 @@ func TestFeedGetItemWithReplies(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "feed", "get-item", "i-1")
 	if code != 0 {
@@ -130,7 +130,7 @@ func TestFeedGetItemJSONOmitsReplies(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "feed", "get-item", "i-1")
 	if code != 0 {
@@ -150,7 +150,7 @@ func TestFeedGetItemRepliesFailureNonFatal(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "feed", "get-item", "i-2")
 	if code != 0 {
@@ -168,7 +168,7 @@ func TestFeedPost(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "feed", "post", "shipping it", "--feed", "f-1", "--title", "Deploy")
 	if code != 0 {
@@ -195,7 +195,7 @@ func TestFeedPostFromStdinAndAuthor(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	_, _, code := runAuth(t, cfg, cs, nil, "from stdin", "feed", "post",
 		"--feed", "f-1", "--title", "T", "--body-file", "-", "--author", "ci-bot")
@@ -211,7 +211,7 @@ func TestFeedPostArgAndBodyFileConflict(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "feed", "post", "arg msg",
 		"--feed", "f-1", "--title", "T", "--body-file", "-"); code != exitcode.UsageErr {
@@ -226,7 +226,7 @@ func TestFeedReply(t *testing.T) {
 	var cap feedCapture
 	srv := feedServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "feed", "reply", "i-1", "my reply")
 	if code != 0 {

@@ -24,7 +24,7 @@ type attachmentCapture struct {
 
 func attachmentServer(t *testing.T, cap *attachmentCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/the-team/attachments"
+	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/attachments"
 	mux := http.NewServeMux()
 	mux.HandleFunc(base, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -75,7 +75,7 @@ func TestAttachmentUploadMultipart(t *testing.T) {
 	var cap attachmentCapture
 	srv := attachmentServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	f := writeTemp(t, "report.txt", "hello attachment body")
 	out, _, code := runAuth(t, cfg, cs, nil, "", "attachment", "upload", f, "--owner-id", "own-1")
@@ -100,7 +100,7 @@ func TestAttachmentUploadContentTypeOverride(t *testing.T) {
 	var cap attachmentCapture
 	srv := attachmentServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// A file with no useful extension; override the content type explicitly.
 	f := writeTemp(t, "blob", "some bytes")
@@ -118,7 +118,7 @@ func TestAttachmentUploadRequiresOwner(t *testing.T) {
 	var cap attachmentCapture
 	srv := attachmentServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	f := writeTemp(t, "report.txt", "x")
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "attachment", "upload", f); code != exitcode.UsageErr {
@@ -134,7 +134,7 @@ func TestAttachmentList(t *testing.T) {
 	var cap attachmentCapture
 	srv := attachmentServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	// Missing --owner-id → exit 2.
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "attachment", "list"); code != exitcode.UsageErr {
@@ -156,7 +156,7 @@ func TestAttachmentDelete(t *testing.T) {
 	var cap attachmentCapture
 	srv := attachmentServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "attachment", "delete", "att-1"); code != exitcode.UsageErr {
 		t.Errorf("delete without --yes exit = %d, want 2", code)

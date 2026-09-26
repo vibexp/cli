@@ -40,9 +40,9 @@ func apiServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
-	mux.HandleFunc("/api/v1/the-team/scoped", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/scoped", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"team":"the-team"}`))
+		_, _ = w.Write([]byte(`{"team":"0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01"}`))
 	})
 	mux.HandleFunc("/api/v1/missing", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
@@ -164,13 +164,13 @@ func TestAPIPostWithStdinBodyAndHeader(t *testing.T) {
 func TestAPITeamSubstitution(t *testing.T) {
 	srv := apiServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "api", "GET", "/api/v1/{team}/scoped")
 	if code != 0 {
 		t.Fatalf("exit = %d, out=%q", code, out)
 	}
-	if !strings.Contains(out, `"team":"the-team"`) {
+	if !strings.Contains(out, `"team":"0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01"`) {
 		t.Errorf("team not substituted: %q", out)
 	}
 }

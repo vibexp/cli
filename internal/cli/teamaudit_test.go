@@ -26,12 +26,12 @@ const (
 	auditEmptyBody = `{"entries":[],"page":1,"per_page":50,"total_count":0,"total_pages":1}`
 )
 
-// auditServer serves the audit trail for "the-team" and records the last query
+// auditServer serves the audit trail for "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01" and records the last query
 // so pagination mapping can be asserted.
 func auditServer(t *testing.T, body string, gotQuery *url.Values) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/the-team/settings/audit", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/settings/audit", func(w http.ResponseWriter, r *http.Request) {
 		if gotQuery != nil {
 			*gotQuery = r.URL.Query()
 		}
@@ -44,7 +44,7 @@ func auditServer(t *testing.T, body string, gotQuery *url.Values) *httptest.Serv
 func TestTeamAuditTSVColumns(t *testing.T) {
 	srv := auditServer(t, auditFullBody, nil)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "team", "audit")
 	rows := rowsFrom(t, "team audit", out, code, 2)
@@ -66,7 +66,7 @@ func TestTeamAuditTSVColumns(t *testing.T) {
 func TestTeamAuditNullableFieldsRenderEmpty(t *testing.T) {
 	srv := auditServer(t, auditFullBody, nil)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "team", "audit")
 	row := rowsFrom(t, "team audit", out, code, 2)[1]
@@ -92,7 +92,7 @@ func TestTeamAuditNullableFieldsRenderEmpty(t *testing.T) {
 func TestTeamAuditEmptyLogRendersNoRows(t *testing.T) {
 	srv := auditServer(t, auditEmptyBody, nil)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "team", "audit")
 	if code != 0 {
@@ -106,7 +106,7 @@ func TestTeamAuditEmptyLogRendersNoRows(t *testing.T) {
 func TestTeamAuditJSONIsRawBody(t *testing.T) {
 	srv := auditServer(t, auditFullBody, nil)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "team", "audit")
 	if code != 0 {
@@ -121,7 +121,7 @@ func TestTeamAuditPaginationReachesQuery(t *testing.T) {
 	var q url.Values
 	srv := auditServer(t, auditEmptyBody, &q)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
 
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "team", "audit", "--page", "3", "--limit", "7"); code != 0 {
 		t.Fatalf("exit = %d", code)

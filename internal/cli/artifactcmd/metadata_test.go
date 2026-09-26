@@ -50,7 +50,7 @@ func runMeta(t *testing.T, srv *httptest.Server, cmd *cobra.Command, stdin strin
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SilenceUsage, cmd.SilenceErrors = true, true
-	ctx := clictx.WithRuntime(context.Background(), &config.Runtime{BaseURL: srv.URL, Team: "the-team", Project: "p-1", Format: "json"})
+	ctx := clictx.WithRuntime(context.Background(), &config.Runtime{BaseURL: srv.URL, Team: "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01", Project: "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", Format: "json"})
 	return exitcode.FromError(cmd.ExecuteContext(ctx))
 }
 

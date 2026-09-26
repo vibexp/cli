@@ -60,11 +60,6 @@ func New(resolve CredResolver, getenv config.Getenv) *cobra.Command {
 				return exitcode.New(exitcode.RuntimeErr, errRuntimeMissing)
 			}
 
-			resolvedPath, err := substituteTeam(path, rt)
-			if err != nil {
-				return err
-			}
-
 			hdr, err := parseHeaders(headers)
 			if err != nil {
 				return err
@@ -79,6 +74,11 @@ func New(resolve CredResolver, getenv config.Getenv) *cobra.Command {
 				return exitcode.New(exitcode.RuntimeErr, err)
 			}
 			client, err := api.NewRaw(ctx, rt, store, getenv)
+			if err != nil {
+				return err
+			}
+			// After NewRaw, so a {team} slug resolves to the UUID paths take.
+			resolvedPath, err := substituteTeam(path, rt)
 			if err != nil {
 				return err
 			}

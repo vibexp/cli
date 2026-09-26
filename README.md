@@ -141,6 +141,10 @@ id). The full secret never appears in `auth status`, logs, or error messages.
 Base URL can also be overridden with `VIBEXP_BASE_URL`. Resolution precedence
 everywhere is **flag > env > active context**.
 
+A team or project slug (as shown by `vibexp team list` / `vibexp project list`)
+works anywhere an id does: the CLI looks up its UUID with one extra request per
+command. Pass the UUID to skip that lookup.
+
 ## Output & scripting
 
 Output is **TTY-aware**: a terminal gets an aligned, colored table; a pipe gets

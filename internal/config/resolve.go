@@ -35,6 +35,17 @@ type Runtime struct {
 	Format string
 	JQ     string
 	IsTTY  bool
+	// Slugs looks up the UUID behind a team or project slug, which REST paths
+	// require. api.NewRaw installs it so api.Team/api.Project resolve lazily:
+	// only a command that is team- or project-scoped pays for the lookup. Nil
+	// means values pass through unchanged.
+	Slugs SlugResolver
+}
+
+// SlugResolver maps a team or project slug to its UUID.
+type SlugResolver interface {
+	TeamID(slug string) (string, error)
+	ProjectID(teamID, slug string) (string, error)
 }
 
 // Getenv is the signature of an environment lookup (os.Getenv), injectable for
