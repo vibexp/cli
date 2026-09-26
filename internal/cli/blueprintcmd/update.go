@@ -62,12 +62,8 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			if meta.Set() {
-				m, err := meta.ForUpdate(ctx, client, itemURL, cmd.InOrStdin())
-				if err != nil {
-					return err
-				}
-				payload["metadata"] = m
+			if err := meta.AddMerged(ctx, client, itemURL, payload); err != nil {
+				return err
 			}
 			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPut, itemURL, payload, &itemSpec)
 		},

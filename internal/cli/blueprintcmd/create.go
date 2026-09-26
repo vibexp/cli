@@ -71,12 +71,8 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
-			if meta.Set() {
-				m, err := meta.Build(cmd.InOrStdin())
-				if err != nil {
-					return err
-				}
-				payload["metadata"] = m
+			if err := meta.AddTo(payload); err != nil {
+				return err
 			}
 			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPost, base, payload, &itemSpec)
 		},

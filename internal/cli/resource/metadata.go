@@ -156,6 +156,34 @@ func (f *MetadataFlags) overlay(current, given map[string]any) map[string]any {
 	return out
 }
 
+// AddTo sets payload["metadata"] for a create when a metadata flag was given;
+// stdin is the bound command's.
+func (f *MetadataFlags) AddTo(payload map[string]any) error {
+	if !f.Set() {
+		return nil
+	}
+	m, err := f.Build(f.cmd.InOrStdin())
+	if err != nil {
+		return err
+	}
+	payload["metadata"] = m
+	return nil
+}
+
+// AddMerged sets payload["metadata"] for an update when a metadata flag was
+// given, merging into the item at itemPath (see ForUpdate).
+func (f *MetadataFlags) AddMerged(ctx context.Context, client *api.RawClient, itemPath string, payload map[string]any) error {
+	if !f.Set() {
+		return nil
+	}
+	m, err := f.ForUpdate(ctx, client, itemPath, f.cmd.InOrStdin())
+	if err != nil {
+		return err
+	}
+	payload["metadata"] = m
+	return nil
+}
+
 // parseMetadataJSON reads --metadata-json (inline, @file, or '-') and requires
 // a JSON object.
 func parseMetadataJSON(arg string, in io.Reader) (map[string]any, error) {
