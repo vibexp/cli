@@ -225,6 +225,27 @@ endpoint has no metadata filter, so the flag is deliberately not offered rather
 than silently ignored); `--tags` is memories-only. Discover what you can filter
 on with `vibexp metadata keys` / `vibexp metadata values`.
 
+### Setting metadata
+
+`memory`, `artifact` and `blueprint` `create`/`update` write metadata, so what
+you set is what `list --metadata` and `vibexp metadata keys` read back:
+
+```bash
+vibexp memory create --body-file note.md --metadata source=cli --metadata area=auth
+vibexp artifact create report --title Report --body-file r.md \
+  --metadata-json '{"priority":2,"reviewed":true}'   # typed values; also @file or -
+
+vibexp memory update <id> --metadata area=billing      # merges: other keys are kept
+vibexp memory update <id> --unset-metadata area        # removes one key
+vibexp blueprint update api --replace-metadata --metadata spec.type=api   # replaces all
+```
+
+`--metadata` values are strings; use `--metadata-json` for numbers, bools and
+nested values (`--metadata` wins on a key conflict). `update` reads the resource
+first to merge, so a concurrent write in between is lost; `--replace-metadata`
+skips the read. Prompts have no metadata. On memories the server turns a `tags`
+metadata key into labels.
+
 ### Freshness in output
 
 The same four `list` commands carry a **`STALE`** column, so you can see which

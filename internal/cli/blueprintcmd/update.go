@@ -12,11 +12,13 @@ import (
 
 func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, title, description, typ, subtype, path, status string
+	var meta resource.MetadataFlags
 	cmd := &cobra.Command{
 		Use:   "update <slug>",
 		Short: "Update a blueprint",
-		Long:  "Update a blueprint's content (--body-file), title, description, type, subtype, path, or status. At least one must be given. Resolves the project from --project, VIBEXP_PROJECT, or the active context.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Update a blueprint's content (--body-file), title, description, type, subtype, path, status, or metadata. At least one must be given. Resolves the project from --project, VIBEXP_PROJECT, or the active context.\n\n" +
+			resource.MetadataUpdateHelp,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, rt, client, err := resource.RuntimeAndClient(cmd, resolve, getenv)
 			if err != nil {
@@ -24,6 +26,9 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			}
 
 			payload := map[string]any{}
+			if err := meta.CheckStdin(bodyFile); err != nil {
+				return err
+			}
 			content, err := readBodyFile(cmd, bodyFile)
 			if err != nil {
 				return err
@@ -49,13 +54,20 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
-			if len(payload) == 0 {
-				return exitcode.Usage("nothing to update: pass --body-file, --title, --description, --type, --subtype, --path, or --status")
+			if len(payload) == 0 && !meta.Set() {
+				return exitcode.Usage("nothing to update: pass --body-file, --title, --description, --type, --subtype, --path, --status, or a metadata flag")
 			}
 
 			itemURL, err := itemPath(rt, args[0])
 			if err != nil {
 				return err
+			}
+			if meta.Set() {
+				m, err := meta.ForUpdate(ctx, client, itemURL, cmd.InOrStdin())
+				if err != nil {
+					return err
+				}
+				payload["metadata"] = m
 			}
 			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPut, itemURL, payload, &itemSpec)
 		},
@@ -67,5 +79,6 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&subtype, "subtype", "", "new subtype category")
 	cmd.Flags().StringVar(&path, "path", "", "new repo-relative path")
 	cmd.Flags().StringVar(&status, "status", "", "new status")
+	resource.AddMetadataFlags(cmd, &meta, true)
 	return cmd
 }

@@ -99,6 +99,17 @@ answer. The same reasoning is why `freshness` is a strict server-side enum
 Discovery for filter authors lives in `vibexp metadata keys|values --type
 <artifacts|blueprints|memories>` (`internal/cli/metadatacmd`).
 
+### Writing metadata
+
+Create/update verbs of a noun whose request schema has `metadata` bind
+`resource.MetadataFlags` via `resource.AddMetadataFlags(cmd, &meta, update)`
+(`--metadata`, `--metadata-json`; plus `--unset-metadata`/`--replace-metadata`
+on update). `create` sends `meta.Build(...)`; `update` sends
+`meta.ForUpdate(ctx, client, itemPath, ...)`, which GETs the item and merges —
+the server replaces the whole object whenever `metadata` is sent, so a bare
+overlay would wipe every key the user did not repeat. Call
+`meta.CheckStdin(bodyFile)` before reading the body.
+
 ## Conventions
 
 - **Gate on `permissions`, never `role`** — team/permission display and any
