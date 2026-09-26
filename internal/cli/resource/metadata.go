@@ -182,7 +182,7 @@ func parseMetadataJSON(arg string, in io.Reader) (map[string]any, error) {
 	if err := dec.Decode(&obj); err != nil || obj == nil {
 		return nil, exitcode.Usage("invalid --metadata-json: expected a JSON object")
 	}
-	if dec.More() {
+	if _, err := dec.Token(); err != io.EOF {
 		return nil, exitcode.Usage("invalid --metadata-json: trailing data after the JSON object")
 	}
 	return obj, nil

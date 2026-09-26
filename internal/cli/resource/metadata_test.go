@@ -90,6 +90,8 @@ func TestMetadataFlagsBuildRejects(t *testing.T) {
 		{"json scalar", []string{"--metadata-json", `"x"`}},
 		{"json null", []string{"--metadata-json", "null"}},
 		{"trailing data", []string{"--metadata-json", `{"a":1} {"b":2}`}},
+		{"trailing brace", []string{"--metadata-json", `{"a":1}}`}},
+		{"trailing bracket", []string{"--metadata-json", `{"a":1}]`}},
 		{"missing file", []string{"--metadata-json", "@/nonexistent/meta.json"}},
 		{"set and unset", []string{"--metadata", "a=1", "--unset-metadata", "a"}},
 		{"empty unset", []string{"--unset-metadata", ""}},
