@@ -33,39 +33,17 @@ func FetchAllPages(ctx context.Context, client *api.RawClient, path string, hdr 
 		return nil, nil, exitcode.Usage("invalid path %q: %v", path, err)
 	}
 	q := u.Query()
-
-	limit := DefaultPageLimit
-	if l := q.Get("limit"); l != "" {
-		if n, err := strconv.Atoi(l); err == nil && n > 0 {
-			limit = n
-		}
-	} else {
-		q.Set("limit", strconv.Itoa(limit))
-	}
-	startPage := 1
-	if p := q.Get("page"); p != "" {
-		if n, err := strconv.Atoi(p); err == nil && n > 0 {
-			startPage = n
-		}
-	}
+	limit, startPage := walkStart(q)
 
 	items = []json.RawMessage{}
 	for page := startPage; ; page++ {
 		q.Set("page", strconv.Itoa(page))
 		u.RawQuery = q.Encode()
 
-		resp, err := client.Do(ctx, http.MethodGet, u.String(), nil, hdr)
+		raw, err := fetchPage(ctx, client, u.String(), hdr)
 		if err != nil {
 			return nil, nil, err
 		}
-		raw, err := api.ReadBody(resp)
-		if err != nil {
-			return nil, nil, exitcode.New(exitcode.RuntimeErr, err)
-		}
-		if cerr := api.Check(resp.StatusCode, raw); cerr != nil {
-			return nil, nil, cerr
-		}
-
 		pageItems, ok := ExtractItems(raw)
 		if !ok {
 			if page == startPage {
@@ -80,6 +58,38 @@ func FetchAllPages(ctx context.Context, client *api.RawClient, path string, hdr 
 		}
 	}
 	return items, nil, nil
+}
+
+// walkStart reads the page size and first page from a list query, setting the
+// default limit on q when it has none.
+func walkStart(q url.Values) (limit, startPage int) {
+	limit, startPage = DefaultPageLimit, 1
+	if n, err := strconv.Atoi(q.Get("limit")); err == nil && n > 0 {
+		limit = n
+	} else if q.Get("limit") == "" {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if n, err := strconv.Atoi(q.Get("page")); err == nil && n > 0 {
+		startPage = n
+	}
+	return limit, startPage
+}
+
+// fetchPage GETs one page and returns its body, mapping a non-2xx through
+// api.Check.
+func fetchPage(ctx context.Context, client *api.RawClient, path string, hdr http.Header) ([]byte, error) {
+	resp, err := client.Do(ctx, http.MethodGet, path, nil, hdr)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := api.ReadBody(resp)
+	if err != nil {
+		return nil, exitcode.New(exitcode.RuntimeErr, err)
+	}
+	if cerr := api.Check(resp.StatusCode, raw); cerr != nil {
+		return nil, cerr
+	}
+	return raw, nil
 }
 
 // lastPage reports whether the walk must stop after this page. Besides a
