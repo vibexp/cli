@@ -1,6 +1,7 @@
 package authcmd
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -44,14 +45,10 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 
 	hc := &http.Client{Timeout: rt.Timeout}
 
-	meta, err := oauth.Discover(ctx, hc, baseURL)
-	if errors.Is(err, oauth.ErrNoAuthServer) {
-		return exitcode.Auth("this deployment has no OAuth server. Use: vibexp auth login --with-api-key")
-	}
+	meta, resource, err := discoverAuthServer(ctx, hc, baseURL)
 	if err != nil {
-		return exitcode.New(exitcode.RuntimeErr, err)
+		return err
 	}
-	resource := oauth.DiscoverResource(ctx, hc, baseURL)
 
 	lis, redirectURI, err := oauth.Listen()
 	if err != nil {
@@ -69,17 +66,9 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 	// This runs before registration so the scopes can be declared at DCR.
 	scopes := oauth.NegotiateScopes(preferredScopes, meta.ScopesSupported, resolveScopeOverride(scopeOverride, getenv))
 
-	// Reuse a previously-registered client only when its declared scopes cover
-	// what we will request. An authorization server that grants per-client
-	// scopes from the registration bars the client from any scope it did not
-	// declare at DCR, so a client registered without the needed scopes (e.g. by
-	// an older CLI that declared none) must be re-registered rather than reused.
-	clientID := reusableClientID(store, contextName, scopes)
-	if clientID == "" {
-		clientID, err = oauth.Register(ctx, hc, meta.RegistrationEndpoint, redirectURI, scopes)
-		if err != nil {
-			return exitcode.New(exitcode.RuntimeErr, err)
-		}
+	clientID, err := resolveClientID(ctx, hc, store, contextName, meta, redirectURI, scopes)
+	if err != nil {
+		return err
 	}
 
 	flow := &oauth.Flow{
@@ -119,6 +108,48 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 		return err
 	}
 
+	if err := persistToken(store, contextName, clientID, token); err != nil {
+		return err
+	}
+
+	cmd.PrintErrf("Logged in to context %q as %s <%s> (browser).\n", contextName, user.Name, string(user.Email))
+	return nil
+}
+
+// discoverAuthServer runs RFC 8414 discovery and resolves the RFC 8707
+// resource indicator, mapping a deployment without an OAuth server to the
+// API-key guidance.
+func discoverAuthServer(ctx context.Context, hc *http.Client, baseURL string) (*oauth.Metadata, string, error) {
+	meta, err := oauth.Discover(ctx, hc, baseURL)
+	if errors.Is(err, oauth.ErrNoAuthServer) {
+		return nil, "", exitcode.Auth("this deployment has no OAuth server. Use: vibexp auth login --with-api-key")
+	}
+	if err != nil {
+		return nil, "", exitcode.New(exitcode.RuntimeErr, err)
+	}
+	return meta, oauth.DiscoverResource(ctx, hc, baseURL), nil
+}
+
+// resolveClientID returns the client_id to authorize with, registering a new
+// public client via DCR when no stored one can be reused.
+func resolveClientID(ctx context.Context, hc *http.Client, store *cred.Store, contextName string, meta *oauth.Metadata, redirectURI string, scopes []string) (string, error) {
+	// Reuse a previously-registered client only when its declared scopes cover
+	// what we will request. An authorization server that grants per-client
+	// scopes from the registration bars the client from any scope it did not
+	// declare at DCR, so a client registered without the needed scopes (e.g. by
+	// an older CLI that declared none) must be re-registered rather than reused.
+	if clientID := reusableClientID(store, contextName, scopes); clientID != "" {
+		return clientID, nil
+	}
+	clientID, err := oauth.Register(ctx, hc, meta.RegistrationEndpoint, redirectURI, scopes)
+	if err != nil {
+		return "", exitcode.New(exitcode.RuntimeErr, err)
+	}
+	return clientID, nil
+}
+
+// persistToken writes the browser-login token set for contextName.
+func persistToken(store *cred.Store, contextName, clientID string, token *oauth.Token) error {
 	if err := store.Save(contextName, cred.Entry{
 		Type:         cred.TypeOAuth,
 		ClientID:     clientID,
@@ -132,8 +163,6 @@ func runBrowserLogin(cmd *cobra.Command, resolve StoreResolver, getenv config.Ge
 	}); err != nil {
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}
-
-	cmd.PrintErrf("Logged in to context %q as %s <%s> (browser).\n", contextName, user.Name, string(user.Email))
 	return nil
 }
 
