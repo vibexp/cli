@@ -119,9 +119,10 @@ Create/update verbs of a noun whose request schema has `labels` bind
 `resource.LabelFlags` via `resource.AddLabelFlags(cmd, &labels, update)` and
 call `labels.AddTo(payload)` — on update **before** the "nothing to update"
 check, so `--label` alone counts. It sends `labels` only when `--label` was
-given (an update without it never clears them; `--label ""` sends `[]`), and
-rejects more than 10 labels or one over 50 characters as a usage error before
-any request. `promptcmd` predates the helper and keeps its own `--label`.
+given (an update without it never clears them; `--label ""` sends `[]`). The
+flag's own value type rejects more than 10 labels or one over 50 characters
+while flags are parsed, so it is a usage error (exit 2) before anything is read
+or sent, and `AddTo` has no error to return. `promptcmd` predates the helper and keeps its own `--label`.
 
 ## Conventions
 

@@ -24,7 +24,7 @@ func TestLabelWrite(t *testing.T) {
 		code    int
 	}{
 		{"create", false, []string{"--body-file", "-", "--label", "a", "--label", "b"}, `["a","b"]`, "POST", 0},
-		{"create too long", false, []string{"--body-file", "-", "--label", strings.Repeat("x", 51)}, "", "", exitcode.UsageErr},
+		{"create too long", false, []string{"--body-file", "-", "--label", strings.Repeat("x", 51)}, "", "", exitcode.RuntimeErr}, // flag error: exit 2 via root (list_labels_test.go)
 		{"update sets", true, []string{"m-1", "--label", "c"}, `["c"]`, "PUT", 0},
 		{"update clears", true, []string{"m-1", "--label", ""}, `[]`, "PUT", 0},
 		{"update without --label keeps labels", true, []string{"m-1", "--status", "active"}, "", "PUT", 0},

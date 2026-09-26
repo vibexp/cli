@@ -17,7 +17,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "update <slug>",
 		Short: "Update an artifact",
-		Long: "Update an artifact's content (--body-file), title, description, type, status, labels, or metadata. At least one must be given. Resolves the project from --project, VIBEXP_PROJECT, or the active context.\n\n" +
+		Long: "Update an artifact's content (--body-file), title, description, type, status, or metadata. At least one must be given. Resolves the project from --project, VIBEXP_PROJECT, or the active context.\n\n" +
 			resource.MetadataUpdateHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,9 +49,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if changeSummary != "" {
 				payload["change_summary"] = changeSummary
 			}
-			if err := labels.AddTo(payload); err != nil {
-				return err
-			}
+			labels.AddTo(payload)
 			if len(payload) == 0 && !meta.Set() {
 				return exitcode.Usage("nothing to update: pass --body-file, --title, --description, --type, --status, --label, or a metadata flag")
 			}

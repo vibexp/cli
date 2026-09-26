@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"fmt"
 	"net/url"
+	"strings"
 	"testing"
+
+	"github.com/vibexp/cli/internal/exitcode"
 )
 
 // TestListLabelsFilter covers the v0.13.0 labels filter on all four curated
@@ -56,6 +60,34 @@ func TestListLabelsFilter(t *testing.T) {
 				case tc.want != "" && q.Get("labels") != tc.want:
 					t.Errorf("labels param = %q, want %q", q.Get("labels"), tc.want)
 				}
+			}
+		})
+	}
+}
+
+// TestLabelLimitsAreUsageErrors pins the --label limits through the root
+// command: a label over 50 characters, or an 11th label, is a flag error →
+// exit 2, and no request is sent.
+func TestLabelLimitsAreUsageErrors(t *testing.T) {
+	var many []string
+	for i := 0; i <= 10; i++ {
+		many = append(many, "--label", fmt.Sprintf("l%d", i))
+	}
+	for name, labelArgs := range map[string][]string{
+		"too long": {"--label", strings.Repeat("x", 51)},
+		"too many": many,
+	} {
+		t.Run(name, func(t *testing.T) {
+			var cap memoryCapture
+			srv := memoryServer(t, &cap)
+			defer srv.Close()
+			cfg, cs := apiFixture(t, srv.URL, "the-team")
+			args := append([]string{"--project", "p-1", "memory", "create", "--body-file", "-"}, labelArgs...)
+			if _, _, code := runAuth(t, cfg, cs, nil, "content", args...); code != exitcode.UsageErr {
+				t.Fatalf("exit = %d, want %d", code, exitcode.UsageErr)
+			}
+			if cap.createBody != nil {
+				t.Errorf("a request was sent: %v", cap.createBody)
 			}
 		})
 	}

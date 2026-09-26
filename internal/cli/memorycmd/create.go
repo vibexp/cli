@@ -49,9 +49,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
-			if err := labels.AddTo(payload); err != nil {
-				return err
-			}
+			labels.AddTo(payload)
 			if err := meta.AddTo(payload); err != nil {
 				return err
 			}

@@ -6,42 +6,44 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-
-	"github.com/vibexp/cli/internal/exitcode"
 )
 
 func TestLabelFlagsAddTo(t *testing.T) {
-	eleven := make([]string, 0, 22)
-	for i := 0; i <= MaxLabels; i++ {
-		eleven = append(eleven, "--label", "l"+strings.Repeat("x", i))
+	var ten, tenArgs []string
+	for i := 0; i < MaxLabels; i++ {
+		ten = append(ten, "l"+strings.Repeat("x", i))
+		tenArgs = append(tenArgs, "--label", ten[i])
 	}
+	with := func(extra ...string) []string { return append(append([]string{}, tenArgs...), extra...) }
 	tests := []struct {
 		name string
 		args []string
-		want any // payload["labels"]; nil = key absent
-		code int
+		want any  // payload["labels"]; nil = key absent
+		bad  bool // flag parsing must fail
 	}{
-		{"not given sends nothing", nil, nil, 0},
-		{"repeatable in order", []string{"--label", "a", "--label", "b"}, []string{"a", "b"}, 0},
-		{"blank clears", []string{"--label", ""}, []string{}, 0},
-		{"blank values dropped", []string{"--label", " ", "--label", "a"}, []string{"a"}, 0},
-		{"50 multibyte runes ok", []string{"--label", strings.Repeat("é", MaxLabelLength)}, []string{strings.Repeat("é", MaxLabelLength)}, 0},
-		{"51 characters rejected", []string{"--label", strings.Repeat("a", MaxLabelLength+1)}, nil, exitcode.UsageErr},
-		{"11 labels rejected", eleven, nil, exitcode.UsageErr},
+		{"not given sends nothing", nil, nil, false},
+		{"repeatable in order", []string{"--label", "a", "--label", "b"}, []string{"a", "b"}, false},
+		{"blank clears", []string{"--label", ""}, []string{}, false},
+		{"blank values dropped", []string{"--label", " ", "--label", "a"}, []string{"a"}, false},
+		{"50 multibyte runes ok", []string{"--label", strings.Repeat("é", MaxLabelLength)}, []string{strings.Repeat("é", MaxLabelLength)}, false},
+		{"51 characters rejected", []string{"--label", strings.Repeat("a", MaxLabelLength+1)}, nil, true},
+		{"11 labels rejected", with("--label", "one-too-many"), nil, true},
+		{"blanks do not count toward the cap", with("--label", " "), ten, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd := &cobra.Command{Use: "create"}
 			var f LabelFlags
 			AddLabelFlags(cmd, &f, false)
-			if err := cmd.ParseFlags(tc.args); err != nil {
-				t.Fatal(err)
+			err := cmd.ParseFlags(tc.args)
+			if (err != nil) != tc.bad {
+				t.Fatalf("parse error = %v, want error %v", err, tc.bad)
+			}
+			if tc.bad {
+				return
 			}
 			payload := map[string]any{}
-			err := f.AddTo(payload)
-			if code := exitcode.FromError(err); code != tc.code {
-				t.Fatalf("exit = %d, want %d (%v)", code, tc.code, err)
-			}
+			f.AddTo(payload)
 			got, ok := payload["labels"]
 			if tc.want == nil {
 				if ok {

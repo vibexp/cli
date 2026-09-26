@@ -43,9 +43,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				project, _ := cmd.Flags().GetString("project")
 				payload["project_id"] = project
 			}
-			if err := labels.AddTo(payload); err != nil {
-				return err
-			}
+			labels.AddTo(payload)
 			if len(payload) == 0 && !meta.Set() {
 				return exitcode.Usage("nothing to update: pass --body-file, --status, --project, --label, or a metadata flag")
 			}

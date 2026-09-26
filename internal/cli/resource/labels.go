@@ -6,14 +6,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/spf13/cobra"
-
-	"github.com/vibexp/cli/internal/exitcode"
 )
 
 // The platform's per-resource label limits (v0.13.0 shared labels): a resource
 // carries at most MaxLabels labels of at most MaxLabelLength characters each.
-// They are checked before any request so an oversized list is a usage error,
-// not a round trip ending in a 400.
+// They are checked as the flag is parsed, so an oversized list is a usage
+// error before anything is read or sent, not a round trip ending in a 400.
 const (
 	MaxLabels      = 10
 	MaxLabelLength = 50
@@ -39,7 +37,7 @@ func AddLabelFlags(cmd *cobra.Command, f *LabelFlags, update bool) {
 	if update {
 		usage = "replacement label (repeatable; " + limits + "; replaces all existing labels, --label \"\" clears them)"
 	}
-	cmd.Flags().StringArrayVar(&f.vals, "label", nil, usage)
+	cmd.Flags().Var(labelValue{&f.vals}, "label", usage)
 }
 
 // Set reports whether --label was given, even as "".
@@ -47,26 +45,32 @@ func (f *LabelFlags) Set() bool {
 	return f.cmd != nil && f.cmd.Flags().Changed("label")
 }
 
-// AddTo sets payload["labels"] when --label was given. Blank values are
-// dropped, so --label "" alone sends an empty list. Beyond the platform's
-// limits it is a usage error and nothing is sent.
-func (f *LabelFlags) AddTo(payload map[string]any) error {
-	if !f.Set() {
+// AddTo sets payload["labels"] when --label was given; --label "" alone sends
+// an empty list, which clears the labels on update.
+func (f *LabelFlags) AddTo(payload map[string]any) {
+	if f.Set() {
+		payload["labels"] = append([]string{}, f.vals...)
+	}
+}
+
+// labelValue is the pflag.Value behind --label: a string array that drops
+// blank values and enforces the platform's limits as each value is parsed.
+type labelValue struct{ vals *[]string }
+
+func (v labelValue) String() string { return "[" + strings.Join(*v.vals, ",") + "]" }
+
+func (v labelValue) Type() string { return "stringArray" }
+
+func (v labelValue) Set(s string) error {
+	if strings.TrimSpace(s) == "" {
 		return nil
 	}
-	labels := make([]string, 0, len(f.vals))
-	for _, v := range f.vals {
-		if strings.TrimSpace(v) == "" {
-			continue
-		}
-		if n := utf8.RuneCountInString(v); n > MaxLabelLength {
-			return exitcode.Usage("invalid --label %q: at most %d characters, got %d", v, MaxLabelLength, n)
-		}
-		labels = append(labels, v)
+	if n := utf8.RuneCountInString(s); n > MaxLabelLength {
+		return fmt.Errorf("at most %d characters per label, got %d", MaxLabelLength, n)
 	}
-	if len(labels) > MaxLabels {
-		return exitcode.Usage("too many --label values: at most %d, got %d", MaxLabels, len(labels))
+	if len(*v.vals) == MaxLabels {
+		return fmt.Errorf("at most %d labels", MaxLabels)
 	}
-	payload["labels"] = labels
+	*v.vals = append(*v.vals, s)
 	return nil
 }
