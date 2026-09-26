@@ -421,8 +421,10 @@ vibexp api GET /api/v1/{team}/memories --paginate  # merge every page into one J
 - `--input <file>` or `--input -` (stdin) sends a body (`Content-Type:
   application/json` by default). `--header 'Key: Value'` (repeatable) overrides.
 - Paths are server-relative; `{team}` substitutes the resolved team (flag > env >
-  context). `--paginate` (GET only) walks `page`/`limit` until a short page and
-  emits the union of items.
+  context). `--paginate` (GET only) walks `page`/`limit` — the same walk as
+  `list --all` — until a short page (sized by the server's `per_page`), the
+  response's `total_pages`, or a response with no page metadata (an endpoint
+  that does not paginate returns its one page), and emits the union of items.
 - Exit codes and RFC 7807 errors (with `request_id`) are identical to curated
   commands.
 
