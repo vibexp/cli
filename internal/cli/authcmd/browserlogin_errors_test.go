@@ -3,7 +3,6 @@ package authcmd
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,31 +12,23 @@ import (
 	"github.com/vibexp/cli/internal/exitcode"
 )
 
-// newFailingLoginFixture wires a login fixture against a deployment whose
+// newFailingLoginFixture wires the standard login fixture, except that the
 // discovery or registration endpoint answers with the given status. A zero
-// status leaves that endpoint behaving normally.
+// status leaves that endpoint to the standard fixture.
 func newFailingLoginFixture(t *testing.T, discoveryStatus, registerStatus int) *loginFixture {
 	t.Helper()
-	as := &loginAS{}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, _ *http.Request) {
-		if discoveryStatus != 0 {
+	as := newLoginAS(t, false, http.StatusOK)
+	next := as.srv.Config.Handler
+	as.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/.well-known/oauth-authorization-server" && discoveryStatus != 0:
 			w.WriteHeader(discoveryStatus)
-			return
+		case r.URL.Path == "/register" && registerStatus != 0:
+			w.WriteHeader(registerStatus)
+		default:
+			next.ServeHTTP(w, r)
 		}
-		writeJSON(w, map[string]any{
-			"issuer":                 as.srv.URL,
-			"authorization_endpoint": as.srv.URL + "/authorize",
-			"token_endpoint":         as.srv.URL + "/token",
-			"registration_endpoint":  as.srv.URL + "/register",
-			"scopes_supported":       []string{"mcp"},
-		})
 	})
-	mux.HandleFunc("/register", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(registerStatus)
-	})
-	as.srv = httptest.NewServer(mux)
-	t.Cleanup(as.srv.Close)
 	return newLoginFixtureAS(t, as)
 }
 
@@ -53,7 +44,7 @@ func TestRunBrowserLoginPhaseErrors(t *testing.T) {
 	}{
 		{"no oauth server", http.StatusNotFound, 0, exitcode.AuthErr, "no OAuth server"},
 		{"discovery failure", http.StatusInternalServerError, 0, exitcode.RuntimeErr, "discovery"},
-		{"registration failure", 0, http.StatusInternalServerError, exitcode.RuntimeErr, ""},
+		{"registration failure", 0, http.StatusInternalServerError, exitcode.RuntimeErr, "dynamic client registration failed"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
