@@ -14,12 +14,14 @@ import (
 
 func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, title, description, typ, status string
+	var meta resource.MetadataFlags
 	cmd := &cobra.Command{
 		Use:   "create <slug>",
 		Short: "Create an artifact",
 		Long: "Create an artifact with the given slug. The content is read from\n" +
 			"--body-file (a path or '-' for stdin) and --title is required. The project\n" +
-			"is resolved from --project, VIBEXP_PROJECT, or the active context.",
+			"is resolved from --project, VIBEXP_PROJECT, or the active context." +
+			"\n\n" + resource.MetadataHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, rt, client, err := resource.RuntimeAndClient(cmd, resolve, getenv)
@@ -60,6 +62,9 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
+			if err := meta.AddTo(payload); err != nil {
+				return err
+			}
 			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPost, base, payload, &itemSpec)
 		},
 	}
@@ -68,5 +73,6 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&description, "description", "", "optional description")
 	cmd.Flags().StringVar(&typ, "type", "", "type category (defaults to general server-side)")
 	cmd.Flags().StringVar(&status, "status", "", "initial status")
+	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd
 }

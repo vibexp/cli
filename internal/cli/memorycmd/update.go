@@ -12,11 +12,13 @@ import (
 
 func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, status string
+	var meta resource.MetadataFlags
 	cmd := &cobra.Command{
 		Use:   "update <id>",
 		Short: "Update a memory",
-		Long:  "Update a memory's content (--body-file), status, or project (--project). At least one must be given.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Update a memory's content (--body-file), status, project (--project), or\n" +
+			"metadata. At least one must be given.\n\n" + resource.MetadataUpdateHelp,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, rt, client, err := resource.RuntimeAndClient(cmd, resolve, getenv)
 			if err != nil {
@@ -40,18 +42,23 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				project, _ := cmd.Flags().GetString("project")
 				payload["project_id"] = project
 			}
-			if len(payload) == 0 {
-				return exitcode.Usage("nothing to update: pass --body-file, --status, or --project")
+			if len(payload) == 0 && !meta.Set() {
+				return exitcode.Usage("nothing to update: pass --body-file, --status, --project, or a metadata flag")
 			}
 
 			base, err := basePath(rt)
 			if err != nil {
 				return err
 			}
-			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPut, base+"/"+args[0], payload, &itemSpec)
+			itemURL := base + "/" + args[0]
+			if err := meta.AddMerged(ctx, client, itemURL, payload); err != nil {
+				return err
+			}
+			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPut, itemURL, payload, &itemSpec)
 		},
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with new content, or '-' for stdin")
 	cmd.Flags().StringVar(&status, "status", "", "new status")
+	resource.AddMetadataFlags(cmd, &meta, true)
 	return cmd
 }

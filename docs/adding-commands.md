@@ -99,6 +99,19 @@ answer. The same reasoning is why `freshness` is a strict server-side enum
 Discovery for filter authors lives in `vibexp metadata keys|values --type
 <artifacts|blueprints|memories>` (`internal/cli/metadatacmd`).
 
+### Writing metadata
+
+Create/update verbs of a noun whose request schema has `metadata` bind
+`resource.MetadataFlags` via `resource.AddMetadataFlags(cmd, &meta, update)`
+(`--metadata`, `--metadata-json`; plus `--unset-metadata`/`--replace-metadata`
+on update). `create` calls `meta.AddTo(payload)`; `update` calls
+`meta.AddMerged(ctx, client, itemPath, payload)`, which (via `ForUpdate`) GETs
+the item and merges — the server replaces the whole object whenever `metadata`
+is sent, so a bare overlay would wipe every key the user did not repeat. Both
+are no-ops when no metadata flag was given. `--body-file -` together with
+`--metadata-json -` is rejected by the helper itself (it reads the command's
+`body-file` flag).
+
 ## Conventions
 
 - **Gate on `permissions`, never `role`** — team/permission display and any

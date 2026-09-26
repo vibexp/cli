@@ -14,12 +14,14 @@ import (
 
 func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, status string
+	var meta resource.MetadataFlags
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a memory",
 		Long: "Create a memory. The content is read from --body-file (a path or '-'\n" +
 			"for stdin). The project is resolved from --project, VIBEXP_PROJECT, or\n" +
-			"the active context.",
+			"the active context." +
+			"\n\n" + resource.MetadataHelp,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx, rt, client, err := resource.RuntimeAndClient(cmd, resolve, getenv)
@@ -46,10 +48,14 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
+			if err := meta.AddTo(payload); err != nil {
+				return err
+			}
 			return resource.SendItem(ctx, cmd, rt, getenv, client, http.MethodPost, base, payload, &itemSpec)
 		},
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with the memory content, or '-' for stdin")
 	cmd.Flags().StringVar(&status, "status", "", "initial status (e.g. active)")
+	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd
 }
