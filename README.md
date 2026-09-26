@@ -350,6 +350,18 @@ vibexp prompt update greet --name "Greeting v2"
 vibexp prompt delete greet --yes
 ```
 
+`prompt get --body` prints only the stored body, raw and byte-for-byte
+(`@references` and `{{vars}}` unexpanded), so an edit-in-place round trip is
+lossless:
+
+```bash
+vibexp prompt get greet --body > greet.tmpl
+$EDITOR greet.tmpl
+vibexp prompt update greet --body-file greet.tmpl
+```
+
+`--body` cannot be combined with `--format` or `--jq` (exit 2).
+
 `prompt render` substitutes repeatable `--var key=value` pairs and prints the
 rendered text raw to stdout — pipe-safe, no decoration — so it drops straight
 into a shell pipeline or an AI-tool hook:
