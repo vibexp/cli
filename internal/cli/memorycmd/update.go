@@ -11,14 +11,15 @@ import (
 )
 
 func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
-	var bodyFile, status string
+	var bodyFile, status, title string
 	var meta resource.MetadataFlags
 	var labels resource.LabelFlags
 	cmd := &cobra.Command{
 		Use:   "update <id>",
 		Short: "Update a memory",
-		Long: "Update a memory's content (--body-file), status, project (--project),\n" +
-			"labels, or metadata. At least one must be given.\n\n" + resource.MetadataUpdateHelp,
+		Long: "Update a memory's content (--body-file), title, status, project\n" +
+			"(--project), labels, or metadata. At least one must be given. --title \"\"\n" +
+			"clears the title.\n\n" + resource.MetadataUpdateHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, rt, client, err := resource.RuntimeAndClient(cmd, resolve, getenv)
@@ -34,6 +35,17 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if text != nil {
 				payload["text"] = string(text)
 			}
+			// Send a title only when --title is given, so an update never clears
+			// it implicitly; --title "" sends null, which clears it.
+			if cmd.Flags().Changed("title") {
+				if err := checkTitle(title); err != nil {
+					return err
+				}
+				payload["title"] = nil
+				if title != "" {
+					payload["title"] = title
+				}
+			}
 			if status != "" {
 				payload["status"] = status
 			}
@@ -45,7 +57,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			}
 			labels.AddTo(payload)
 			if len(payload) == 0 && !meta.Set() {
-				return exitcode.Usage("nothing to update: pass --body-file, --status, --project, --label, or a metadata flag")
+				return exitcode.Usage("nothing to update: pass --body-file, --title, --status, --project, --label, or a metadata flag")
 			}
 
 			base, err := basePath(rt)
@@ -60,6 +72,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 		},
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with new content, or '-' for stdin")
+	cmd.Flags().StringVar(&title, "title", "", titleUsage+`; "" clears it`)
 	cmd.Flags().StringVar(&status, "status", "", "new status")
 	resource.AddLabelFlags(cmd, &labels, true)
 	resource.AddMetadataFlags(cmd, &meta, true)
