@@ -37,8 +37,8 @@ type Runtime struct {
 	IsTTY  bool
 	// Slugs looks up the UUID behind a team or project slug, which REST paths
 	// require. api.NewRaw installs it so api.Team/api.Project resolve lazily:
-	// only a command that is team- or project-scoped pays for the lookup. Nil
-	// means values pass through unchanged.
+	// only a command that is team- or project-scoped pays for the lookup. When
+	// nil, a UUID still passes through but a slug fails closed (exit 1).
 	Slugs SlugResolver
 }
 
