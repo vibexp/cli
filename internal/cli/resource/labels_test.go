@@ -59,7 +59,8 @@ func TestLabelFlagsAddTo(t *testing.T) {
 func TestAddLabelFlagsUpdateUsage(t *testing.T) {
 	cmd := &cobra.Command{Use: "update"}
 	AddLabelFlags(cmd, &LabelFlags{}, true)
-	if u := cmd.Flags().Lookup("label").Usage; !strings.Contains(u, "replaces") {
-		t.Errorf("update --label usage = %q, want it to say labels are replaced", u)
+	u := cmd.Flags().Lookup("label").Usage
+	if !strings.Contains(u, "replaces") || !strings.Contains(u, "at most 10, 50 characters") {
+		t.Errorf("update --label usage = %q, want the replace semantics and the limits", u)
 	}
 }

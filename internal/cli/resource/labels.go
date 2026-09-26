@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -33,9 +34,10 @@ type LabelFlags struct {
 // resource's existing ones.
 func AddLabelFlags(cmd *cobra.Command, f *LabelFlags, update bool) {
 	f.cmd = cmd
-	usage := "label for categorizing and filtering (repeatable; at most 10, 50 characters each)"
+	limits := fmt.Sprintf("at most %d, %d characters each", MaxLabels, MaxLabelLength)
+	usage := "label for categorizing and filtering (repeatable; " + limits + ")"
 	if update {
-		usage = "replacement label (repeatable; replaces all existing labels, --label \"\" clears them)"
+		usage = "replacement label (repeatable; " + limits + "; replaces all existing labels, --label \"\" clears them)"
 	}
 	cmd.Flags().StringArrayVar(&f.vals, "label", nil, usage)
 }
