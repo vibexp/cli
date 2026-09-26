@@ -22,13 +22,15 @@ import (
 
 // Suite state, populated in TestMain.
 var (
-	binPath   string // compiled vibexp binary
-	homeDir   string // isolated $HOME so the developer's ~/.vibexp never leaks in
-	baseURL   string // VIBEXP_CLI_TEST_URL, by reference
-	apiKey    string // VIBEXP_CLI_TEST_API_KEY, by reference
-	teamID    string // first team visible to the key's user
-	projectID string // first project in that team
-	runID     string // short random hex namespacing this run's resources
+	binPath     string // compiled vibexp binary
+	homeDir     string // isolated $HOME so the developer's ~/.vibexp never leaks in
+	baseURL     string // VIBEXP_CLI_TEST_URL, by reference
+	apiKey      string // VIBEXP_CLI_TEST_API_KEY, by reference
+	teamID      string // first team visible to the key's user
+	projectID   string // first project in that team
+	teamSlug    string // slug of teamID, for the --team <slug> checks
+	projectSlug string // slug of projectID
+	runID       string // short random hex namespacing this run's resources
 )
 
 // nsPrefix is the namespace shared by every resource any run of this suite

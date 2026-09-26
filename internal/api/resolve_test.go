@@ -15,15 +15,20 @@ import (
 	"github.com/vibexp/cli/internal/exitcode"
 )
 
-func TestTeamPresentPassThrough(t *testing.T) {
-	// UUID and slug are both passed through unchanged.
-	for _, v := range []string{"dee2f88f-4372-4deb-af2c-021b21b4eb0e", "my-team-slug"} {
-		got, err := Team(&config.Runtime{Team: v})
-		if err != nil {
-			t.Fatalf("Team(%q): %v", v, err)
-		}
-		if got != v {
-			t.Errorf("Team = %q, want %q", got, v)
+func TestTeamUUIDPassesThrough(t *testing.T) {
+	const v = "dee2f88f-4372-4deb-af2c-021b21b4eb0e"
+	got, err := Team(&config.Runtime{Team: v})
+	if err != nil || got != v {
+		t.Fatalf("Team = %q, %v; want %q", got, err, v)
+	}
+}
+
+func TestSlugWithoutResolverFailsClosed(t *testing.T) {
+	// A slug must never reach a REST path unresolved.
+	for name, resolve := range map[string]func(*config.Runtime) (string, error){"Team": Team, "Project": Project} {
+		_, err := resolve(&config.Runtime{Team: "my-team-slug", Project: "my-project-slug"})
+		if got := exitcode.FromError(err); got != exitcode.RuntimeErr {
+			t.Errorf("%s with a slug and no resolver: exit = %d, want 1 (err %v)", name, got, err)
 		}
 	}
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -17,7 +18,8 @@ import (
 // Team returns the resolved team id for a team-scoped command. The precedence
 // (--team > VIBEXP_TEAM > active-context default) is already applied in
 // config.Resolve. REST paths take only a UUID, so a slug is looked up through
-// the runtime's SlugResolver (installed by NewRaw) and the UUID is written back
+// the runtime's SlugResolver (installed by NewRaw, which must therefore run
+// first) and the UUID is written back
 // to rt, so later calls in the same invocation make no request. A missing team
 // is a usage error (exit 2) naming all three ways to set it.
 func Team(rt *config.Runtime) (string, error) {
@@ -25,8 +27,11 @@ func Team(rt *config.Runtime) (string, error) {
 	if v == "" {
 		return "", exitcode.Usage("no team set: pass --team <id|slug>, set VIBEXP_TEAM, or set a default on the context (vibexp config set-context %s --team <id|slug>)", contextName(rt))
 	}
-	if isUUID(v) || rt.Slugs == nil {
+	if isUUID(v) {
 		return v, nil
+	}
+	if rt.Slugs == nil {
+		return "", errNoSlugResolver
 	}
 	id, err := rt.Slugs.TeamID(v)
 	if err != nil {
@@ -43,8 +48,11 @@ func Project(rt *config.Runtime) (string, error) {
 	if v == "" {
 		return "", exitcode.Usage("no project set: pass --project <id|slug>, set VIBEXP_PROJECT, or set a default on the context (vibexp config set-context %s --project <id|slug>)", contextName(rt))
 	}
-	if isUUID(v) || rt.Slugs == nil {
+	if isUUID(v) {
 		return v, nil
+	}
+	if rt.Slugs == nil {
+		return "", errNoSlugResolver
 	}
 	team, err := Team(rt)
 	if err != nil {
@@ -66,6 +74,12 @@ func OptionalProject(rt *config.Runtime) (string, error) {
 	}
 	return Project(rt)
 }
+
+// errNoSlugResolver fails closed when a slug is resolved before NewRaw
+// installed the resolver: sending the slug on would hit the server's
+// "must be a valid UUID" error instead. It means a command built its path
+// before its client — a bug, not a user error.
+var errNoSlugResolver = exitcode.New(exitcode.RuntimeErr, errors.New("internal: team/project slug resolved before the API client was built"))
 
 // isUUID reports whether v is a canonical 36-character UUID (uuid.Validate
 // alone also accepts the urn: and braced forms, which REST paths do not).

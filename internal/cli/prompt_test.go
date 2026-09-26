@@ -34,7 +34,7 @@ type promptCapture struct {
 
 func promptServer(t *testing.T, cap *promptCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/prompts"
+	const base = "/api/v1/" + testTeamID + "/prompts"
 	mux := http.NewServeMux()
 	mux.HandleFunc(base, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -87,7 +87,7 @@ func TestPromptCreateFromFile(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	dir := t.TempDir()
 	f := dir + "/body.md"
@@ -95,11 +95,11 @@ func TestPromptCreateFromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "create", "greet",
-		"--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--name", "Greeting", "--body-file", f, "--label", "a", "--label", "b")
+		"--project", testProjectID, "--name", "Greeting", "--body-file", f, "--label", "a", "--label", "b")
 	if code != 0 {
 		t.Fatalf("create exit = %d, out=%q", code, out)
 	}
-	if cap.createBody["project_id"] != "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61" || cap.createBody["slug"] != "greet" ||
+	if cap.createBody["project_id"] != testProjectID || cap.createBody["slug"] != "greet" ||
 		cap.createBody["name"] != "Greeting" || cap.createBody["body"] != "Hello {{env}}" {
 		t.Errorf("create body wrong: %+v", cap.createBody)
 	}
@@ -116,18 +116,18 @@ func TestPromptCreateValidation(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// Missing project → exit 2.
 	if _, _, code := runAuth(t, cfg, cs, nil, "x", "prompt", "create", "greet", "--name", "G", "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing project exit = %d, want 2", code)
 	}
 	// Missing body → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "create", "greet", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--name", "G"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "create", "greet", "--project", testProjectID, "--name", "G"); code != exitcode.UsageErr {
 		t.Errorf("missing body exit = %d, want 2", code)
 	}
 	// Missing name → exit 2.
-	if _, _, code := runAuth(t, cfg, cs, nil, "x", "prompt", "create", "greet", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--body-file", "-"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfg, cs, nil, "x", "prompt", "create", "greet", "--project", testProjectID, "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing name exit = %d, want 2", code)
 	}
 }
@@ -136,7 +136,7 @@ func TestPromptGetAndNotFound(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "get", "greet")
 	if code != 0 || !strings.Contains(out, "greet") {
@@ -155,7 +155,7 @@ func TestPromptUpdate(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "update", "greet", "--name", "Greeting v2")
 	if code != 0 {
@@ -173,7 +173,7 @@ func TestPromptDelete(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "delete", "greet"); code != exitcode.UsageErr {
 		t.Errorf("delete without --yes exit = %d, want 2", code)
@@ -197,14 +197,14 @@ func TestPromptListPaginationAndProjectFilter(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", testOtherProjectID,
 		"prompt", "list", "--limit", "3")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
 	}
-	if cap.listQuery.Get("project_id") != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" || cap.listQuery.Get("limit") != "3" {
+	if cap.listQuery.Get("project_id") != testOtherProjectID || cap.listQuery.Get("limit") != "3" {
 		t.Errorf("list query wrong: %v", cap.listQuery)
 	}
 	if !strings.Contains(out, `"slug":"greet"`) {
@@ -218,7 +218,7 @@ func TestPromptRenderRaw(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "render", "greet",
 		"--var", "env=prod", "--var", "region=eu")
@@ -240,7 +240,7 @@ func TestPromptRenderDuplicateVarLastWins(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "render", "greet",
 		"--var", "env=dev", "--var", "env=prod")
@@ -257,7 +257,7 @@ func TestPromptRenderFormatJSON(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "prompt", "render", "greet", "--var", "env=prod")
 	if code != 0 {
@@ -275,7 +275,7 @@ func TestPromptRenderJQ(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "render", "greet",
 		"--var", "env=prod", "--jq", ".rendered_body")
@@ -291,7 +291,7 @@ func TestPromptRenderMissingVariable(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, errOut, code := runAuth(t, cfg, cs, nil, "", "prompt", "render", "needs-var")
 	if code != exitcode.RuntimeErr {
@@ -309,7 +309,7 @@ func TestPromptRenderInvalidVar(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// No '=' → usage error, no request sent.
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "render", "greet", "--var", "novalue"); code != exitcode.UsageErr {
@@ -325,7 +325,7 @@ func TestPromptListStaleFilter(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "prompt", "list", "--stale")
 	if code != 0 {
@@ -343,7 +343,7 @@ func TestPromptListRejectsMetadataFlag(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, errOut, code := runAuth(t, cfg, cs, nil, "", "prompt", "list", "--metadata", "env=prod")
 	if code != exitcode.UsageErr {
@@ -360,7 +360,7 @@ func TestPromptGetBodyRaw(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "prompt", "get", "greet", "--body")
 	if code != 0 {
@@ -390,7 +390,7 @@ func TestPromptGetBodyIgnoresFormatEnv(t *testing.T) {
 	var cap promptCapture
 	srv := promptServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	getenv := func(k string) string {
 		if k == "VIBEXP_FORMAT" {

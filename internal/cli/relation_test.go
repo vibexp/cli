@@ -24,8 +24,8 @@ type relationCapture struct {
 // fabricated data.
 func relationServer(t *testing.T, cap *relationCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/relations"
-	const relationJSON = `{"id":"rel-1","team_id":"t-1","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","from_type":"artifact","from_id":"a-1","to_type":"blueprint","to_id":"b-1","relation_type":"governed-by","origin":"human","status":"suggested","created_at":"2026-07-21T09:00:00Z","updated_at":"2026-07-21T09:00:00Z"}`
+	const base = "/api/v1/" + testTeamID + "/relations"
+	const relationJSON = `{"id":"rel-1","team_id":"t-1","project_id":"` + testProjectID + `","from_type":"artifact","from_id":"a-1","to_type":"blueprint","to_id":"b-1","relation_type":"governed-by","origin":"human","status":"suggested","created_at":"2026-07-21T09:00:00Z","updated_at":"2026-07-21T09:00:00Z"}`
 
 	mux := http.NewServeMux()
 	// List (GET) and create (POST) on the collection.
@@ -34,7 +34,7 @@ func relationServer(t *testing.T, cap *relationCapture) *httptest.Server {
 		switch r.Method {
 		case http.MethodGet:
 			cap.listQuery = r.URL.Query()
-			_, _ = w.Write([]byte(`{"relations":[{"relation_id":"rel-1","relation_type":"governed-by","direction":"outgoing","origin":"human","status":"confirmed","resource_type":"blueprint","resource_id":"b-1","title":"Go coding standards","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","slug":"go-coding-standards","created_at":"2026-07-21T09:00:00Z"}],"total_count":1,"page":1,"per_page":20,"total_pages":1}`))
+			_, _ = w.Write([]byte(`{"relations":[{"relation_id":"rel-1","relation_type":"governed-by","direction":"outgoing","origin":"human","status":"confirmed","resource_type":"blueprint","resource_id":"b-1","title":"Go coding standards","project_id":"` + testProjectID + `","slug":"go-coding-standards","created_at":"2026-07-21T09:00:00Z"}],"total_count":1,"page":1,"per_page":20,"total_pages":1}`))
 		case http.MethodPost:
 			_ = json.NewDecoder(r.Body).Decode(&cap.createBody)
 			// Idempotent: an existing edge returns 200, a new one 201.
@@ -65,7 +65,7 @@ func relationServer(t *testing.T, cap *relationCapture) *httptest.Server {
 				return
 			}
 			cap.confirmed = id
-			_, _ = w.Write([]byte(`{"id":"rel-1","team_id":"t-1","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","from_type":"artifact","from_id":"a-1","to_type":"blueprint","to_id":"b-1","relation_type":"governed-by","origin":"human","status":"confirmed","created_at":"2026-07-21T09:00:00Z","updated_at":"2026-07-21T09:05:00Z"}`))
+			_, _ = w.Write([]byte(`{"id":"rel-1","team_id":"t-1","project_id":"` + testProjectID + `","from_type":"artifact","from_id":"a-1","to_type":"blueprint","to_id":"b-1","relation_type":"governed-by","origin":"human","status":"confirmed","created_at":"2026-07-21T09:00:00Z","updated_at":"2026-07-21T09:05:00Z"}`))
 		case r.Method == http.MethodDelete:
 			if rest == "nope" {
 				w.Header().Set("Content-Type", "application/problem+json")
@@ -86,7 +86,7 @@ func TestRelationListColumnsAndQuery(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "relations", "list", "blueprint", "b-1", "--limit", "5")
 	if code != 0 {
@@ -110,7 +110,7 @@ func TestRelationListJSONPassthrough(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "relations", "list", "memory", "m-1")
 	if code != 0 {
@@ -125,7 +125,7 @@ func TestRelationListRequiresTwoArgs(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// cobra's Args validation surfaces as a generic error (exit 1), the same as
 	// every other ExactArgs command in the CLI; only flag errors map to exit 2.
@@ -138,7 +138,7 @@ func TestRelationCreateFlags(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "",
 		"relations", "create",
@@ -165,7 +165,7 @@ func TestRelationCreateIdempotent200(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// to_id "existing" makes the server answer 200 (edge already existed).
 	_, _, code := runAuth(t, cfg, cs, nil, "",
@@ -182,7 +182,7 @@ func TestRelationCreateRequiresFlags(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// Missing --to-id → exit 2, nothing sent.
 	if _, _, code := runAuth(t, cfg, cs, nil, "",
@@ -201,7 +201,7 @@ func TestRelationConfirm(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "relations", "confirm", "rel-1")
 	if code != 0 {
@@ -219,7 +219,7 @@ func TestRelationConfirmAlready409(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, errOut, code := runAuth(t, cfg, cs, nil, "", "relations", "confirm", "already")
 	if code != exitcode.RuntimeErr {
@@ -234,7 +234,7 @@ func TestRelationDelete(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// Non-interactive without --yes → exit 2, no delete.
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "relations", "delete", "rel-1"); code != exitcode.UsageErr {
@@ -260,7 +260,7 @@ func TestRelationSeed(t *testing.T) {
 	var cap relationCapture
 	srv := relationServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, errOut, code := runAuth(t, cfg, cs, nil, "", "relations", "seed")
 	if code != 0 {

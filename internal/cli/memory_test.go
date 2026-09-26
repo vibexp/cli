@@ -23,18 +23,18 @@ type memoryCapture struct {
 
 func memoryServer(t *testing.T, cap *memoryCapture) *httptest.Server {
 	t.Helper()
-	const base = "/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/memories"
+	const base = "/api/v1/" + testTeamID + "/memories"
 	mux := http.NewServeMux()
 	mux.HandleFunc(base, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
 			cap.listQuery = r.URL.Query()
-			_, _ = w.Write([]byte(`{"memories":[{"id":"m-1","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"hello world"}],"page":1,"per_page":50,"total_count":1,"total_pages":1}`))
+			_, _ = w.Write([]byte(`{"memories":[{"id":"m-1","project_id":"` + testProjectID + `","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"hello world"}],"page":1,"per_page":50,"total_count":1,"total_pages":1}`))
 		case http.MethodPost:
 			_ = json.NewDecoder(r.Body).Decode(&cap.createBody)
 			w.WriteHeader(http.StatusCreated)
-			_, _ = w.Write([]byte(`{"id":"m-new","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-02T00:00:00Z","text":"created"}`))
+			_, _ = w.Write([]byte(`{"id":"m-new","project_id":"` + testProjectID + `","status":"active","updated_at":"2026-02-02T00:00:00Z","text":"created"}`))
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -43,10 +43,10 @@ func memoryServer(t *testing.T, cap *memoryCapture) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
-			_, _ = w.Write([]byte(`{"id":"m-1","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"hello world"}`))
+			_, _ = w.Write([]byte(`{"id":"m-1","project_id":"` + testProjectID + `","status":"active","updated_at":"2026-02-01T00:00:00Z","text":"hello world"}`))
 		case http.MethodPut:
 			_ = json.NewDecoder(r.Body).Decode(&cap.updateBody)
-			_, _ = w.Write([]byte(`{"id":"m-1","project_id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","status":"archived","updated_at":"2026-02-03T00:00:00Z","text":"hello world"}`))
+			_, _ = w.Write([]byte(`{"id":"m-1","project_id":"` + testProjectID + `","status":"archived","updated_at":"2026-02-03T00:00:00Z","text":"hello world"}`))
 		case http.MethodDelete:
 			cap.deleted = "m-1"
 			w.WriteHeader(http.StatusNoContent)
@@ -64,18 +64,18 @@ func TestMemoryCreateFromFileAndProject(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	dir := t.TempDir()
 	f := dir + "/body.md"
 	if err := os.WriteFile(f, []byte("# note\nbody text"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	out, _, code := runAuth(t, cfg, cs, nil, "", "memory", "create", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--body-file", f)
+	out, _, code := runAuth(t, cfg, cs, nil, "", "memory", "create", "--project", testProjectID, "--body-file", f)
 	if code != 0 {
 		t.Fatalf("create exit = %d, out=%q", code, out)
 	}
-	if cap.createBody["project_id"] != "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61" || cap.createBody["text"] != "# note\nbody text" {
+	if cap.createBody["project_id"] != testProjectID || cap.createBody["text"] != "# note\nbody text" {
 		t.Errorf("create body wrong: %+v", cap.createBody)
 	}
 	if !strings.Contains(out, "m-new") {
@@ -87,9 +87,9 @@ func TestMemoryCreateFromStdin(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	_, _, code := runAuth(t, cfg, cs, nil, "from stdin body", "memory", "create", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61", "--body-file", "-")
+	_, _, code := runAuth(t, cfg, cs, nil, "from stdin body", "memory", "create", "--project", testProjectID, "--body-file", "-")
 	if code != 0 {
 		t.Fatalf("create exit = %d", code)
 	}
@@ -104,12 +104,12 @@ func TestMemoryCreateRequiresContentAndProject(t *testing.T) {
 	defer srv.Close()
 
 	// No project anywhere → exit 2.
-	cfgNoTeam, csNoTeam := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01") // team set, project not
+	cfgNoTeam, csNoTeam := apiFixture(t, srv.URL, testTeamID) // team set, project not
 	if _, _, code := runAuth(t, cfgNoTeam, csNoTeam, nil, "x", "memory", "create", "--body-file", "-"); code != exitcode.UsageErr {
 		t.Errorf("missing project exit = %d, want 2", code)
 	}
 	// Project given but no content → exit 2.
-	if _, _, code := runAuth(t, cfgNoTeam, csNoTeam, nil, "", "memory", "create", "--project", "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61"); code != exitcode.UsageErr {
+	if _, _, code := runAuth(t, cfgNoTeam, csNoTeam, nil, "", "memory", "create", "--project", testProjectID); code != exitcode.UsageErr {
 		t.Errorf("missing content exit = %d, want 2", code)
 	}
 }
@@ -118,7 +118,7 @@ func TestMemoryGetAndNotFound(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "memory", "get", "m-1")
 	if code != 0 || !strings.Contains(out, "m-1") {
@@ -137,7 +137,7 @@ func TestMemoryUpdate(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "memory", "update", "m-1", "--status", "archived")
 	if code != 0 {
@@ -156,7 +156,7 @@ func TestMemoryDelete(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// Non-interactive without --yes → exit 2, no delete.
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "memory", "delete", "m-1"); code != exitcode.UsageErr {
@@ -182,14 +182,14 @@ func TestMemoryListPaginationAndProjectFilter(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", testOtherProjectID,
 		"memory", "list", "--limit", "3")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
 	}
-	if cap.listQuery.Get("project_id") != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" || cap.listQuery.Get("limit") != "3" {
+	if cap.listQuery.Get("project_id") != testOtherProjectID || cap.listQuery.Get("limit") != "3" {
 		t.Errorf("list query wrong: %v", cap.listQuery)
 	}
 	if !strings.Contains(out, `"id":"m-1"`) {
@@ -201,7 +201,7 @@ func TestMemoryListMetadataAndTagsFilter(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
 		"memory", "list", "--metadata", "env=prod", "--metadata", "env=staging",
@@ -219,7 +219,7 @@ func TestMemoryListMetadataInvalidPairExit2(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "memory", "list", "--metadata", "noequals")
 	if code != exitcode.UsageErr {
@@ -233,7 +233,7 @@ func TestMemoryListStaleFilter(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
 		"memory", "list", "--stale", "--tags", "go", "--metadata", "env=prod", "--limit", "10")
@@ -258,7 +258,7 @@ func TestMemoryListWithoutStaleSendsNoFreshness(t *testing.T) {
 	var cap memoryCapture
 	srv := memoryServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "memory", "list"); code != 0 {
 		t.Fatalf("list exit = %d", code)

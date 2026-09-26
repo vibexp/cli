@@ -36,6 +36,8 @@ func slugServer(t *testing.T, cap *slugCapture) *httptest.Server {
 			_, _ = w.Write([]byte(`{"id":"` + webAppProjID + `","slug":"web-app"}`))
 		case "/api/v1/" + acmeTeamID + "/prompts/greet":
 			_, _ = w.Write([]byte(`{"id":"pr-1","slug":"greet","title":"Greet","body":"hi"}`))
+		case "/api/v1/" + acmeTeamID + "/scoped":
+			_, _ = w.Write([]byte(`{"ok":true}`))
 		case "/api/v1/" + acmeTeamID + "/memories":
 			cap.memoriesQuery = r.URL.RawQuery
 			_, _ = w.Write([]byte(`{"memories":[],"page":1,"per_page":50,"total_count":0,"total_pages":1}`))
@@ -64,6 +66,21 @@ func TestTeamSlugResolvesToUUIDPath(t *testing.T) {
 	want := []string{"/api/v1/teams", "/api/v1/" + acmeTeamID + "/prompts/greet"}
 	if strings.Join(cap.paths, " ") != strings.Join(want, " ") {
 		t.Errorf("requests = %v, want %v (one lookup, then the UUID path)", cap.paths, want)
+	}
+}
+
+func TestAPITeamPlaceholderResolvesSlug(t *testing.T) {
+	var cap slugCapture
+	srv := slugServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "")
+
+	if _, errOut, code := runAuth(t, cfg, cs, nil, "", "--team", "acme", "api", "GET", "/api/v1/{team}/scoped"); code != 0 {
+		t.Fatalf("api {team} with a slug exit = %d, stderr=%q", code, errOut)
+	}
+	want := []string{"/api/v1/teams", "/api/v1/" + acmeTeamID + "/scoped"}
+	if strings.Join(cap.paths, " ") != strings.Join(want, " ") {
+		t.Errorf("requests = %v, want %v", cap.paths, want)
 	}
 }
 

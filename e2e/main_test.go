@@ -114,6 +114,7 @@ func discoverScope() error {
 		return fmt.Errorf("no teams visible to the test user")
 	}
 	teamID, _ = teams[0]["id"].(string)
+	teamSlug, _ = teams[0]["slug"].(string)
 	if teamID == "" {
 		return fmt.Errorf("team list item has no id")
 	}
@@ -130,6 +131,7 @@ func discoverScope() error {
 		return fmt.Errorf("no projects in team")
 	}
 	projectID, _ = projects[0]["id"].(string)
+	projectSlug, _ = projects[0]["slug"].(string)
 	if projectID == "" {
 		return fmt.Errorf("project list item has no id")
 	}

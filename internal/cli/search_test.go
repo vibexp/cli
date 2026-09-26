@@ -15,14 +15,14 @@ type searchCapture struct {
 func searchServer(t *testing.T, cap *searchCapture) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/search", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/search", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		_ = json.NewDecoder(r.Body).Decode(&cap.body)
-		_, _ = w.Write([]byte(`{"results":[{"type":"prompt","id":"3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61","slug":"greet","title":"Greeting","score":0.91,"project_name":"Proj","excerpt":"hello"},{"type":"memory","id":"m-1","slug":"","title":"Note","score":0.72,"project_name":"Proj","excerpt":"note"}],"page":1,"per_page":10,"total_count":2,"total_pages":1}`))
+		_, _ = w.Write([]byte(`{"results":[{"type":"prompt","id":"` + testProjectID + `","slug":"greet","title":"Greeting","score":0.91,"project_name":"Proj","excerpt":"hello"},{"type":"memory","id":"m-1","slug":"","title":"Note","score":0.72,"project_name":"Proj","excerpt":"note"}],"page":1,"per_page":10,"total_count":2,"total_pages":1}`))
 	})
 	return httptest.NewServer(mux)
 }
@@ -31,7 +31,7 @@ func TestSearchMixedResultsTableAndJSON(t *testing.T) {
 	var cap searchCapture
 	srv := searchServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// Table (TSV) output: mixed types, both rendered.
 	out, _, code := runAuth(t, cfg, cs, nil, "", "search", "hello", "--type", "prompts", "--type", "memories", "--limit", "5")
@@ -66,13 +66,13 @@ func TestSearchProjectScope(t *testing.T) {
 	var cap searchCapture
 	srv := searchServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	_, _, code := runAuth(t, cfg, cs, nil, "", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9", "search", "hello")
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--project", testOtherProjectID, "search", "hello")
 	if code != 0 {
 		t.Fatalf("search exit = %d", code)
 	}
-	if cap.body["project_id"] != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" {
+	if cap.body["project_id"] != testOtherProjectID {
 		t.Errorf("--project should scope search: %+v", cap.body)
 	}
 }

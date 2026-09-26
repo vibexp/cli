@@ -21,12 +21,12 @@ type metadataCapture struct {
 func metadataServer(t *testing.T, cap *metadataCapture) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/metadata/keys", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/metadata/keys", func(w http.ResponseWriter, r *http.Request) {
 		cap.keysQuery = r.URL.Query()
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"keys":["env","owner","spec.type"],"truncated":false}`))
 	})
-	mux.HandleFunc("/api/v1/0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01/metadata/values", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/metadata/values", func(w http.ResponseWriter, r *http.Request) {
 		cap.valuesQuery = r.URL.Query()
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"values":["prod","staging"],"truncated":false}`))
@@ -38,7 +38,7 @@ func TestMetadataKeysQuery(t *testing.T) {
 	var cap metadataCapture
 	srv := metadataServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
 		"metadata", "keys", "--type", "memories", "--limit", "10")
@@ -57,16 +57,16 @@ func TestMetadataValuesQuery(t *testing.T) {
 	var cap metadataCapture
 	srv := metadataServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9",
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--project", testOtherProjectID,
 		"metadata", "values", "--type", "artifacts", "--key", "env", "--q", "pro")
 	if code != 0 {
 		t.Fatalf("values exit = %d", code)
 	}
 	q := cap.valuesQuery
 	if q.Get("resource_type") != "artifacts" || q.Get("key") != "env" ||
-		q.Get("q") != "pro" || q.Get("project_id") != "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9" {
+		q.Get("q") != "pro" || q.Get("project_id") != testOtherProjectID {
 		t.Errorf("values query wrong: %v", q)
 	}
 	if !strings.Contains(out, `"prod"`) {
@@ -78,7 +78,7 @@ func TestMetadataValuesRequiresKey(t *testing.T) {
 	var cap metadataCapture
 	srv := metadataServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "metadata", "values", "--type", "memories")
 	if code != exitcode.UsageErr {
@@ -90,7 +90,7 @@ func TestMetadataKeysRejectsBadType(t *testing.T) {
 	var cap metadataCapture
 	srv := metadataServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, _, code := runAuth(t, cfg, cs, nil, "", "metadata", "keys", "--type", "prompts")
 	if code != exitcode.UsageErr {
