@@ -46,7 +46,7 @@ func runGet(t *testing.T, resp string, args ...string) (stdout, stderr string, c
 	root.SetOut(&out)
 	root.SetErr(&errOut)
 	root.SetArgs(append([]string{"get"}, args...))
-	ctx := clictx.WithRuntime(context.Background(), &config.Runtime{BaseURL: srv.URL, Team: "the-team"})
+	ctx := clictx.WithRuntime(context.Background(), &config.Runtime{BaseURL: srv.URL, Team: "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01"})
 	err := root.ExecuteContext(ctx)
 	if err != nil {
 		errOut.WriteString(err.Error())

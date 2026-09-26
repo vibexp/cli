@@ -27,7 +27,7 @@ func pagedArtifactServer(t *testing.T, total int, pages *[]int) *httptest.Server
 func clampedArtifactServer(t *testing.T, total, clamp int, pages *[]int) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/the-team/artifacts", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/artifacts", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		perPage := 2
 		if l := q.Get("limit"); l != "" {
@@ -49,7 +49,7 @@ func clampedArtifactServer(t *testing.T, total, clamp int, pages *[]int) *httpte
 		*pages = append(*pages, page)
 		var items []string
 		for i := (page - 1) * perPage; i < page*perPage && i < total; i++ {
-			items = append(items, fmt.Sprintf(`{"id":"a%d","slug":"art-%d","title":"T%d","project_id":"p-1","updated_at":"2026-02-01T00:00:00Z"}`, i+1, i+1, i+1))
+			items = append(items, fmt.Sprintf(`{"id":"a%d","slug":"art-%d","title":"T%d","project_id":"`+testProjectID+`","updated_at":"2026-02-01T00:00:00Z"}`, i+1, i+1, i+1))
 		}
 		totalPages := (total + perPage - 1) / perPage
 		w.Header().Set("Content-Type", "application/json")
@@ -60,7 +60,7 @@ func clampedArtifactServer(t *testing.T, total, clamp int, pages *[]int) *httpte
 }
 
 func TestListLimitHelpNamesServerMax(t *testing.T) {
-	cfg, cs := apiFixture(t, "http://127.0.0.1:0", "the-team")
+	cfg, cs := apiFixture(t, "http://127.0.0.1:0", testTeamID)
 	out, _, code := runAuth(t, cfg, cs, nil, "", "artifact", "list", "--help")
 	if code != 0 {
 		t.Fatalf("help exit = %d", code)
@@ -76,7 +76,7 @@ func TestListWarnsOnStderrWhenMorePagesExist(t *testing.T) {
 	var pages []int
 	srv := pagedArtifactServer(t, 5, &pages)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "artifact", "list")
 	if code != 0 {
@@ -99,7 +99,7 @@ func TestListDoesNotWarnWhenEverythingFit(t *testing.T) {
 	var pages []int
 	srv := pagedArtifactServer(t, 5, &pages)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "artifact", "list", "--limit", "10")
 	if code != 0 {
@@ -114,7 +114,7 @@ func TestListAllMergesEveryPage(t *testing.T) {
 	var pages []int
 	srv := pagedArtifactServer(t, 5, &pages)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "artifact", "list", "--all", "--limit", "2")
 	if code != 0 {
@@ -139,7 +139,7 @@ func TestListAllRendersTableRows(t *testing.T) {
 	var pages []int
 	srv := pagedArtifactServer(t, 3, &pages)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// The merged array has no envelope key, so the table must still find rows.
 	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "text", "artifact", "list", "--all", "--limit", "2")
@@ -154,7 +154,7 @@ func TestListAllRendersTableRows(t *testing.T) {
 }
 
 func TestListAllRejectsPageAndOffset(t *testing.T) {
-	cfg, cs := apiFixture(t, "http://127.0.0.1:0", "the-team")
+	cfg, cs := apiFixture(t, "http://127.0.0.1:0", testTeamID)
 	for _, extra := range [][]string{{"--page", "2"}, {"--offset", "10"}} {
 		args := append([]string{"artifact", "list", "--all"}, extra...)
 		if _, _, code := runAuth(t, cfg, cs, nil, "", args...); code != exitcode.UsageErr {
@@ -167,7 +167,7 @@ func TestListServerBadRequestIsUsageError(t *testing.T) {
 	var pages []int
 	srv := pagedArtifactServer(t, 5, &pages)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	for _, extra := range [][]string{nil, {"--all"}} {
 		args := append([]string{"artifact", "list", "--limit", "200"}, extra...)
@@ -185,7 +185,7 @@ func TestListServerBadRequestIsUsageError(t *testing.T) {
 
 func TestListAllWalksEnvelopedPrompts(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/the-team/prompts", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/prompts", func(w http.ResponseWriter, r *http.Request) {
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		w.Header().Set("Content-Type", "application/json")
 		switch page {
@@ -197,7 +197,7 @@ func TestListAllWalksEnvelopedPrompts(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "prompt", "list", "--all", "--limit", "2")
 	if code != 0 {
@@ -211,13 +211,13 @@ func TestListAllWalksEnvelopedPrompts(t *testing.T) {
 
 func TestSearchWarnsOnStderrWhenMorePagesExist(t *testing.T) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/the-team/search", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/search", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"results":[{"type":"memory","title":"x"}],"page":1,"per_page":1,"total_pages":4,"total_count":4}`))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "search", "anything")
 	if code != 0 {
@@ -233,7 +233,7 @@ func TestSearchWarnsOnStderrWhenMorePagesExist(t *testing.T) {
 func TestListAllStopsOnUnpaginatedEndpoint(t *testing.T) {
 	hits := 0
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/the-team/attachments", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/attachments", func(w http.ResponseWriter, _ *http.Request) {
 		hits++
 		if hits > 5 {
 			t.Error("--all kept walking an unpaginated endpoint")
@@ -245,7 +245,7 @@ func TestListAllStopsOnUnpaginatedEndpoint(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	for _, limit := range []string{"1", "2"} {
 		hits = 0
@@ -271,7 +271,7 @@ func TestListAllFollowsServerPerPage(t *testing.T) {
 	var pages []int
 	srv := clampedArtifactServer(t, 5, 2, &pages)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "artifact", "list", "--all", "--limit", "50")
 	if code != 0 {

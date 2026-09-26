@@ -51,8 +51,12 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 			if len(types) > 0 {
 				payload["types"] = types
 			}
-			if rt.Project != "" {
-				payload["project_id"] = rt.Project
+			project, err := api.OptionalProject(rt)
+			if err != nil {
+				return err
+			}
+			if project != "" {
+				payload["project_id"] = project
 			}
 			if limit > 0 {
 				payload["per_page"] = limit

@@ -86,8 +86,17 @@ directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
   `resource.UsageOnBadRequest`, since that request is built from the user's
   flags (`--limit`, `--page`, filters); the message and `request_id` are kept.
 - **Resolution (`resolve.go`)** — `api.Team(rt)` / `api.Project(rt)` return the
-  already-precedence-resolved id/slug (flag > env > context), or a usage error
-  (exit 2) naming all three ways to set it.
+  already-precedence-resolved team/project id (flag > env > context), or a usage
+  error (exit 2) naming all three ways to set it. REST paths take only a UUID,
+  so a slug is resolved lazily through the `config.SlugResolver` that `NewRaw`
+  installs on the runtime: the team by paging `GET /api/v1/teams`, the project by
+  `GET /api/v1/{team}/projects/{slug}`. The UUID is written back to the runtime,
+  so a command looks each up at most once, a UUID never triggers a request, and
+  a command that is not team-scoped (`team list`, `whoami`) never looks up at
+  all. An unknown slug is a usage error pointing at `vibexp team list` /
+  `vibexp project list`. `api.OptionalProject` is the variant for a project that
+  only narrows a list or search. `vibexp api` resolves its `{team}` placeholder
+  the same way but never rewrites a literal path.
 
 `GET /health` (`health.go`) is the unauthenticated server version handle;
 `vibexp version` appends the server release sha when a context resolves.

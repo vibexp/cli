@@ -20,9 +20,9 @@ type metaWriteNoun struct {
 }
 
 var metaWriteNouns = []metaWriteNoun{
-	{"memory", "m-1", "/api/v1/the-team/memories", "/api/v1/the-team/memories/m-1", nil},
-	{"artifact", "art-1", "/api/v1/the-team/artifacts", "/api/v1/the-team/artifacts/p-1/art-1", []string{"art-1", "--title", "T"}},
-	{"blueprint", "bp-1", "/api/v1/the-team/blueprints", "/api/v1/the-team/blueprints/p-1/bp-1", []string{"bp-1", "--title", "T"}},
+	{"memory", "m-1", "/api/v1/" + testTeamID + "/memories", "/api/v1/" + testTeamID + "/memories/m-1", nil},
+	{"artifact", "art-1", "/api/v1/" + testTeamID + "/artifacts", "/api/v1/" + testTeamID + "/artifacts/" + testProjectID + "/art-1", []string{"art-1", "--title", "T"}},
+	{"blueprint", "bp-1", "/api/v1/" + testTeamID + "/blueprints", "/api/v1/" + testTeamID + "/blueprints/" + testProjectID + "/bp-1", []string{"bp-1", "--title", "T"}},
 }
 
 // metaWriteCapture records every request a metadata write made.
@@ -42,7 +42,7 @@ func metaWriteServer(t *testing.T, n metaWriteNoun, cap *metaWriteCapture) *http
 			cap.body = nil
 			_ = json.NewDecoder(r.Body).Decode(&cap.body)
 		}
-		_, _ = w.Write([]byte(`{"id":"` + n.id + `","project_id":"p-1","status":"active","metadata":{"a":"1","b":"2"}}`))
+		_, _ = w.Write([]byte(`{"id":"` + n.id + `","project_id":"` + testProjectID + `","status":"active","metadata":{"a":"1","b":"2"}}`))
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(n.collection, record)
@@ -65,10 +65,10 @@ func TestMetadataCreateSendsMetadata(t *testing.T) {
 			var cap metaWriteCapture
 			srv := metaWriteServer(t, n, &cap)
 			defer srv.Close()
-			cfg, cs := apiFixture(t, srv.URL, "the-team")
+			cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 			args := append([]string{n.noun, "create"}, n.createArgs...)
-			args = append(args, "--project", "p-1", "--body-file", "-",
+			args = append(args, "--project", testProjectID, "--body-file", "-",
 				"--metadata", "source=cli", "--metadata", "area=auth",
 				"--metadata-json", `{"priority":2,"reviewed":true}`)
 			if _, errOut, code := runAuth(t, cfg, cs, nil, "body", args...); code != 0 {
@@ -87,8 +87,8 @@ func TestMetadataCreateOmittedWithoutFlags(t *testing.T) {
 	var cap metaWriteCapture
 	srv := metaWriteServer(t, n, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
-	if _, _, code := runAuth(t, cfg, cs, nil, "body", "memory", "create", "--project", "p-1", "--body-file", "-"); code != 0 {
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
+	if _, _, code := runAuth(t, cfg, cs, nil, "body", "memory", "create", "--project", testProjectID, "--body-file", "-"); code != 0 {
 		t.Fatalf("create exit = %d", code)
 	}
 	if _, ok := cap.body["metadata"]; ok {
@@ -113,9 +113,9 @@ func TestMetadataUpdateMergesUnsetsReplaces(t *testing.T) {
 				var cap metaWriteCapture
 				srv := metaWriteServer(t, n, &cap)
 				defer srv.Close()
-				cfg, cs := apiFixture(t, srv.URL, "the-team")
+				cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-				args := append([]string{"--project", "p-1", n.noun, "update", n.id}, tc.args...)
+				args := append([]string{"--project", testProjectID, n.noun, "update", n.id}, tc.args...)
 				if _, errOut, code := runAuth(t, cfg, cs, nil, "", args...); code != 0 {
 					t.Fatalf("update exit = %d, stderr=%q", code, errOut)
 				}
@@ -142,13 +142,13 @@ func TestMetadataMalformedIsUsageAndSendsNothing(t *testing.T) {
 		for _, flags := range bad {
 			var cap metaWriteCapture
 			srv := metaWriteServer(t, n, &cap)
-			cfg, cs := apiFixture(t, srv.URL, "the-team")
+			cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-			create := append(append([]string{n.noun, "create"}, n.createArgs...), "--project", "p-1", "--body-file", "-")
+			create := append(append([]string{n.noun, "create"}, n.createArgs...), "--project", testProjectID, "--body-file", "-")
 			if _, _, code := runAuth(t, cfg, cs, nil, "body", append(create, flags...)...); code != exitcode.UsageErr {
 				t.Errorf("%s create %v exit = %d, want 2", n.noun, flags, code)
 			}
-			update := []string{"--project", "p-1", n.noun, "update", n.id}
+			update := []string{"--project", testProjectID, n.noun, "update", n.id}
 			if _, _, code := runAuth(t, cfg, cs, nil, "", append(update, flags...)...); code != exitcode.UsageErr {
 				t.Errorf("%s update %v exit = %d, want 2", n.noun, flags, code)
 			}
@@ -165,8 +165,8 @@ func TestMetadataBodyAndJSONBothStdinRejected(t *testing.T) {
 	var cap metaWriteCapture
 	srv := metaWriteServer(t, n, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
-	if _, _, code := runAuth(t, cfg, cs, nil, "body", "memory", "create", "--project", "p-1",
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
+	if _, _, code := runAuth(t, cfg, cs, nil, "body", "memory", "create", "--project", testProjectID,
 		"--body-file", "-", "--metadata-json", "-"); code != exitcode.UsageErr {
 		t.Errorf("both stdin exit = %d, want 2", code)
 	}

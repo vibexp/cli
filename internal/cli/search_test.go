@@ -15,14 +15,14 @@ type searchCapture struct {
 func searchServer(t *testing.T, cap *searchCapture) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/the-team/search", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/search", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		_ = json.NewDecoder(r.Body).Decode(&cap.body)
-		_, _ = w.Write([]byte(`{"results":[{"type":"prompt","id":"p-1","slug":"greet","title":"Greeting","score":0.91,"project_name":"Proj","excerpt":"hello"},{"type":"memory","id":"m-1","slug":"","title":"Note","score":0.72,"project_name":"Proj","excerpt":"note"}],"page":1,"per_page":10,"total_count":2,"total_pages":1}`))
+		_, _ = w.Write([]byte(`{"results":[{"type":"prompt","id":"` + testProjectID + `","slug":"greet","title":"Greeting","score":0.91,"project_name":"Proj","excerpt":"hello"},{"type":"memory","id":"m-1","slug":"","title":"Note","score":0.72,"project_name":"Proj","excerpt":"note"}],"page":1,"per_page":10,"total_count":2,"total_pages":1}`))
 	})
 	return httptest.NewServer(mux)
 }
@@ -31,7 +31,7 @@ func TestSearchMixedResultsTableAndJSON(t *testing.T) {
 	var cap searchCapture
 	srv := searchServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	// Table (TSV) output: mixed types, both rendered.
 	out, _, code := runAuth(t, cfg, cs, nil, "", "search", "hello", "--type", "prompts", "--type", "memories", "--limit", "5")
@@ -66,13 +66,13 @@ func TestSearchProjectScope(t *testing.T) {
 	var cap searchCapture
 	srv := searchServer(t, &cap)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	_, _, code := runAuth(t, cfg, cs, nil, "", "--project", "p-9", "search", "hello")
+	_, _, code := runAuth(t, cfg, cs, nil, "", "--project", testOtherProjectID, "search", "hello")
 	if code != 0 {
 		t.Fatalf("search exit = %d", code)
 	}
-	if cap.body["project_id"] != "p-9" {
+	if cap.body["project_id"] != testOtherProjectID {
 		t.Errorf("--project should scope search: %+v", cap.body)
 	}
 }

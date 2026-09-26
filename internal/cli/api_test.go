@@ -40,9 +40,9 @@ func apiServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
-	mux.HandleFunc("/api/v1/the-team/scoped", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/scoped", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"team":"the-team"}`))
+		_, _ = w.Write([]byte(`{"team":"` + testTeamID + `"}`))
 	})
 	mux.HandleFunc("/api/v1/missing", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
@@ -164,13 +164,13 @@ func TestAPIPostWithStdinBodyAndHeader(t *testing.T) {
 func TestAPITeamSubstitution(t *testing.T) {
 	srv := apiServer(t)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "api", "GET", "/api/v1/{team}/scoped")
 	if code != 0 {
 		t.Fatalf("exit = %d, out=%q", code, out)
 	}
-	if !strings.Contains(out, `"team":"the-team"`) {
+	if !strings.Contains(out, `"team":"`+testTeamID+`"`) {
 		t.Errorf("team not substituted: %q", out)
 	}
 }
@@ -262,3 +262,11 @@ func TestAPIPaginateRejectsNonGet(t *testing.T) {
 		t.Errorf("--paginate POST exit = %d, want 2", code)
 	}
 }
+
+// Fabricated team/project UUIDs the command tests scope to. REST paths take
+// only UUIDs, and a UUID never triggers a slug lookup.
+const (
+	testTeamID         = "0f5e0a1c-7d2b-4c3e-9a41-5b6c7d8e9f01"
+	testProjectID      = "3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c61"
+	testOtherProjectID = "9c8b7a6f-5e4d-4c3b-8a29-18f7e6d5c4b9"
+)

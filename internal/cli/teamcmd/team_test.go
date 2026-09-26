@@ -49,11 +49,12 @@ func TestNewExposesListAndAudit(t *testing.T) {
 }
 
 func TestAuditPathIsTeamScoped(t *testing.T) {
-	got, err := auditPath(&config.Runtime{Team: "acme"})
+	const team = "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e" // fabricated
+	got, err := auditPath(&config.Runtime{Team: team})
 	if err != nil {
 		t.Fatalf("auditPath: %v", err)
 	}
-	if want := "/api/v1/acme/settings/audit"; got != want {
+	if want := "/api/v1/" + team + "/settings/audit"; got != want {
 		t.Errorf("auditPath = %q, want %q", got, want)
 	}
 }

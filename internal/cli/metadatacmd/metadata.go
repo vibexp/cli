@@ -70,8 +70,12 @@ func newCatalog(resolve resource.CredResolver, getenv config.Getenv, verb, short
 			if query != "" {
 				q.Set("q", query)
 			}
-			if rt.Project != "" {
-				q.Set("project_id", rt.Project)
+			project, err := api.OptionalProject(rt)
+			if err != nil {
+				return err
+			}
+			if project != "" {
+				q.Set("project_id", project)
 			}
 			if limit > 0 {
 				q.Set("limit", strconv.Itoa(limit))

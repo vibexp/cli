@@ -3,6 +3,7 @@ package resource
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 
 	"github.com/spf13/cobra"
 
@@ -54,6 +55,16 @@ type ListConfig struct {
 	Filters *ListFilters
 }
 
+// WithProjectFilter appends ?project_id=<uuid> to a list path when a project
+// is set (--project / env / context), resolving a slug first.
+func WithProjectFilter(path string, rt *config.Runtime) (string, error) {
+	project, err := api.OptionalProject(rt)
+	if err != nil || project == "" {
+		return path, err
+	}
+	return path + "?project_id=" + url.QueryEscape(project), nil
+}
+
 // RunList is the shared runner for a list command: resolve runtime, build the
 // path, apply pagination, fetch, and render. A list command's RunE is just a
 // call to this with its ListConfig and Pagination.
@@ -63,6 +74,12 @@ func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg
 	}
 	ctx := cmd.Context()
 	rt, err := Runtime(ctx)
+	if err != nil {
+		return err
+	}
+	// The client comes first: building it installs the slug resolver PathFor
+	// needs to turn a team or project slug into the UUID the path takes.
+	client, err := Client(ctx, rt, resolve, getenv)
 	if err != nil {
 		return err
 	}
@@ -79,10 +96,6 @@ func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg
 		if err != nil {
 			return err
 		}
-	}
-	client, err := Client(ctx, rt, resolve, getenv)
-	if err != nil {
-		return err
 	}
 	if p.All {
 		return renderAll(cmd, rt, getenv, client, path, cfg.Spec)

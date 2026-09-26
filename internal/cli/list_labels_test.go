@@ -45,8 +45,8 @@ func TestListLabelsFilter(t *testing.T) {
 				{nil, ""},
 			} {
 				base, query, done := start(t)
-				cfg, cs := apiFixture(t, base, "the-team")
-				args := append([]string{"--format", "json", "--project", "p-1", noun, "list"}, tc.args...)
+				cfg, cs := apiFixture(t, base, testTeamID)
+				args := append([]string{"--format", "json", "--project", testProjectID, noun, "list"}, tc.args...)
 				if _, _, code := runAuth(t, cfg, cs, nil, "", args...); code != 0 {
 					done()
 					t.Fatalf("%v: exit = %d", tc.args, code)
@@ -81,8 +81,8 @@ func TestLabelLimitsAreUsageErrors(t *testing.T) {
 			var cap memoryCapture
 			srv := memoryServer(t, &cap)
 			defer srv.Close()
-			cfg, cs := apiFixture(t, srv.URL, "the-team")
-			args := append([]string{"--project", "p-1", "memory", "create", "--body-file", "-"}, labelArgs...)
+			cfg, cs := apiFixture(t, srv.URL, testTeamID)
+			args := append([]string{"--project", testProjectID, "memory", "create", "--body-file", "-"}, labelArgs...)
 			if _, _, code := runAuth(t, cfg, cs, nil, "content", args...); code != exitcode.UsageErr {
 				t.Fatalf("exit = %d, want %d", code, exitcode.UsageErr)
 			}

@@ -29,7 +29,7 @@ func identityServer(t *testing.T, gotQuery *url.Values) *httptest.Server {
 			{"slug":"beta","name":"Beta","member_count":1,"role":"viewer","permissions":["read"]}
 		],"page":1,"per_page":50,"total_count":2,"total_pages":1}`))
 	})
-	mux.HandleFunc("/api/v1/the-team/projects", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/"+testTeamID+"/projects", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"projects":[
 			{"slug":"proj-a","name":"Project A","description":"first","updated_at":"2026-02-01T00:00:00Z"}
@@ -107,7 +107,7 @@ func TestTeamListPaginationFlagsMapToQuery(t *testing.T) {
 func TestProjectListResolvesTeamFromContext(t *testing.T) {
 	srv := identityServer(t, nil)
 	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team") // default team on context
+	cfg, cs := apiFixture(t, srv.URL, testTeamID) // default team on context
 
 	out, _, code := runAuth(t, cfg, cs, nil, "", "project", "list")
 	if code != 0 {
@@ -123,7 +123,7 @@ func TestProjectListTeamViaFlag(t *testing.T) {
 	defer srv.Close()
 	cfg, cs := apiFixture(t, srv.URL, "") // no context default
 
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--team", "the-team", "project", "list")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--team", testTeamID, "project", "list")
 	if code != 0 {
 		t.Fatalf("exit = %d, out=%q", code, out)
 	}

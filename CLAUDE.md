@@ -110,8 +110,10 @@ e2e/                      //go:build e2e — drives the built binary against sta
 - Responses are `<Op>HTTPResponse` wrappers with per-status typed fields
   (`JSON200`, `ApplicationproblemJSON4xx…`); HTTP errors are NOT Go errors — always run
   responses through the shared `api.Check` mapper.
-- Team scoping is in the URL path (`/api/v1/{team_id}/…`); `team_id` accepts UUID **or**
-  slug. There is no server-side "current team" — the CLI resolves it locally.
+- Team scoping is in the URL path (`/api/v1/{team_id}/…`); REST paths take a **UUID
+  only** (the MCP tools also take a slug). `--team`/`--project` accept either: the CLI
+  resolves a slug to its UUID lazily in `api.Team`/`api.Project` (`internal/api/resolve.go`).
+  There is no server-side "current team" — the CLI resolves it locally.
 - Pagination: `page`/`limit`/`offset` query params, `page`/`per_page` response metadata.
 - Uploads: only raw `…WithBody` variants — build streamed multipart bodies yourself
   (`internal/api/multipart.go`).

@@ -5,7 +5,6 @@ package memorycmd
 
 import (
 	"io"
-	"net/url"
 	"os"
 	"strings"
 	"unicode/utf8"
@@ -120,10 +119,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 				return "", err
 			}
 			// Filter by project when one is resolved (--project / env / context).
-			if rt.Project != "" {
-				path += "?project_id=" + url.QueryEscape(rt.Project)
-			}
-			return path, nil
+			return resource.WithProjectFilter(path, rt)
 		},
 		Spec:    output.TableSpec{Rows: resource.ListRows("memories"), Columns: columns},
 		Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true},
