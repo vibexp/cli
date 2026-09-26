@@ -104,10 +104,11 @@ Discovery for filter authors lives in `vibexp metadata keys|values --type
 Create/update verbs of a noun whose request schema has `metadata` bind
 `resource.MetadataFlags` via `resource.AddMetadataFlags(cmd, &meta, update)`
 (`--metadata`, `--metadata-json`; plus `--unset-metadata`/`--replace-metadata`
-on update). `create` sends `meta.Build(...)`; `update` sends
-`meta.ForUpdate(ctx, client, itemPath, ...)`, which GETs the item and merges —
-the server replaces the whole object whenever `metadata` is sent, so a bare
-overlay would wipe every key the user did not repeat. Call
+on update). `create` calls `meta.AddTo(payload)`; `update` calls
+`meta.AddMerged(ctx, client, itemPath, payload)`, which (via `ForUpdate`) GETs
+the item and merges — the server replaces the whole object whenever `metadata`
+is sent, so a bare overlay would wipe every key the user did not repeat. Both
+are no-ops when no metadata flag was given. Call
 `meta.CheckStdin(bodyFile)` before reading the body.
 
 ## Conventions
