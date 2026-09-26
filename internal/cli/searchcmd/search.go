@@ -67,14 +67,15 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 			}
 			raw, _, err := resource.Do(ctx, client, http.MethodPost, "/api/v1/"+team+"/search", body)
 			if err != nil {
-				return err
+				return resource.UsageOnBadRequest(err)
 			}
+			resource.WarnIfPartial(cmd.ErrOrStderr(), raw, "--page or --limit (max "+resource.ServerMaxLimit+")")
 			return resource.Render(cmd, rt, getenv, raw,
 				&output.TableSpec{Rows: resource.ListRows("results"), Columns: columns})
 		},
 	}
 	cmd.Flags().StringArrayVar(&types, "type", nil, "restrict to a resource type (repeatable): prompts|artifacts|blueprints|memories")
-	cmd.Flags().IntVar(&limit, "limit", 0, "maximum results per page")
+	cmd.Flags().IntVar(&limit, "limit", 0, resource.LimitHelp)
 	cmd.Flags().IntVar(&page, "page", 0, "page number (1-based)")
 	return cmd
 }

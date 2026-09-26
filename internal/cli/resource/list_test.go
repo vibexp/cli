@@ -19,7 +19,7 @@ func listCfg() resource.ListConfig {
 
 // flagNames is the pagination surface every list command must bind, whatever
 // verb it is registered under.
-var flagNames = []string{"limit", "page", "offset"}
+var flagNames = []string{"limit", "page", "offset", "all"}
 
 func assertListCommand(t *testing.T, cmd *cobra.Command, wantUse, wantShort string) {
 	t.Helper()

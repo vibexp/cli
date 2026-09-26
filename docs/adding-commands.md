@@ -11,8 +11,8 @@ pagination) comes from the scaffold.
 | Helper | Purpose |
 | --- | --- |
 | `resource.CredResolver` | how a command gets the credential store (passed from root) |
-| `resource.AddPaginationFlags(cmd)` | binds `--limit`/`--page`/`--offset`, returns a `*Pagination` |
-| `resource.RunList(cmd, resolve, getenv, ListConfig, page)` | resolve runtime → build path → apply pagination → fetch → render |
+| `resource.AddPaginationFlags(cmd)` | binds `--limit`/`--page`/`--offset`/`--all`, returns a `*Pagination` |
+| `resource.RunList(cmd, resolve, getenv, ListConfig, page)` | resolve runtime → build path → apply pagination → fetch (every page with `--all`) → render; warns on stderr when the result is partial |
 | `resource.GetItem(cmd, resolve, getenv, path, spec)` | single-object fetch + render (e.g. `whoami`) |
 | `resource.FetchJSON` / `resource.Render` | lower-level fetch (with `api.Check`) and render, for non-list shapes |
 
