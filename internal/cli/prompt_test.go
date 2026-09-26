@@ -12,6 +12,16 @@ import (
 	"github.com/vibexp/cli/internal/exitcode"
 )
 
+// promptBody is a fabricated stored body: multi-line, with an @reference, a
+// {{var}}, a tab, a quote and no trailing newline — everything a JSON-quoted
+// or template-expanded print would mangle.
+const promptBody = "Hello {{name}},\n\tsee @blueprint/style for \"tone\".\nBye"
+
+var promptBodyJSON = func() string {
+	b, _ := json.Marshal(promptBody)
+	return string(b)
+}()
+
 // promptCapture records the last create/update/render body and list query for a
 // fabricated team-scoped prompts endpoint.
 type promptCapture struct {
@@ -44,7 +54,7 @@ func promptServer(t *testing.T, cap *promptCapture) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
-			_, _ = w.Write([]byte(`{"id":"pr-id","slug":"greet","name":"Greeting","status":"active","updated_at":"2026-02-01T00:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"id":"pr-id","slug":"greet","name":"Greeting","status":"active","body":` + promptBodyJSON + `,"updated_at":"2026-02-01T00:00:00Z","related":[{"relation_type":"governed-by","direction":"outgoing","resource_type":"blueprint","title":"Style"}]}`))
 		case http.MethodPut:
 			_ = json.NewDecoder(r.Body).Decode(&cap.updateBody)
 			_, _ = w.Write([]byte(`{"id":"pr-id","slug":"greet","name":"Greeting v2","status":"active","updated_at":"2026-02-03T00:00:00Z"}`))
@@ -341,5 +351,55 @@ func TestPromptListRejectsMetadataFlag(t *testing.T) {
 	}
 	if !strings.Contains(errOut, "unknown flag") {
 		t.Errorf("stderr = %q, want an unknown-flag error", errOut)
+	}
+}
+
+// TestPromptGetBodyRaw: --body prints the stored body byte-for-byte, and feeding
+// that file back through `update --body-file` sends the identical body.
+func TestPromptGetBodyRaw(t *testing.T) {
+	var cap promptCapture
+	srv := promptServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	out, errOut, code := runAuth(t, cfg, cs, nil, "", "prompt", "get", "greet", "--body")
+	if code != 0 {
+		t.Fatalf("get --body exit=%d err=%q", code, errOut)
+	}
+	if out != promptBody {
+		t.Fatalf("get --body stdout = %q, want %q", out, promptBody)
+	}
+	if errOut != "" {
+		t.Errorf("get --body must write nothing to stderr, got %q", errOut)
+	}
+
+	f := t.TempDir() + "/body.txt"
+	if err := os.WriteFile(f, []byte(out), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "prompt", "update", "greet", "--body-file", f); code != 0 {
+		t.Fatalf("update --body-file exit=%d", code)
+	}
+	if got := cap.updateBody["body"]; got != promptBody {
+		t.Errorf("round trip body = %q, want %q", got, promptBody)
+	}
+}
+
+// A VIBEXP_FORMAT default is not an explicit --format, so --body wins.
+func TestPromptGetBodyIgnoresFormatEnv(t *testing.T) {
+	var cap promptCapture
+	srv := promptServer(t, &cap)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	getenv := func(k string) string {
+		if k == "VIBEXP_FORMAT" {
+			return "json"
+		}
+		return ""
+	}
+	out, _, code := runAuth(t, cfg, cs, getenv, "", "prompt", "get", "greet", "--body")
+	if code != 0 || out != promptBody {
+		t.Errorf("exit=%d stdout=%q", code, out)
 	}
 }
