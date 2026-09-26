@@ -13,7 +13,7 @@ import (
 )
 
 func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
-	var bodyFile, status string
+	var bodyFile, status, title string
 	var meta resource.MetadataFlags
 	var labels resource.LabelFlags
 	cmd := &cobra.Command{
@@ -45,7 +45,13 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				return err
 			}
 
+			if err := checkTitle(title); err != nil {
+				return err
+			}
 			payload := map[string]any{"project_id": project, "text": string(text)}
+			if title != "" {
+				payload["title"] = title
+			}
 			if status != "" {
 				payload["status"] = status
 			}
@@ -57,6 +63,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 		},
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with the memory content, or '-' for stdin")
+	cmd.Flags().StringVar(&title, "title", "", titleUsage)
 	cmd.Flags().StringVar(&status, "status", "", "initial status (e.g. active)")
 	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)

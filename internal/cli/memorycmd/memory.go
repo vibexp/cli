@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -40,6 +42,9 @@ var detailColumns = resource.WithFreshnessDetail(
 	[]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
 		{Header: "TEXT", Path: ".text[0:60]"}, // preview of the content
+		// Last, so the columns before it keep their positions for scripts;
+		// a null title (the memory has none) renders empty.
+		{Header: "TITLE", Path: ".title"},
 	},
 )
 
@@ -81,6 +86,20 @@ func readBodyFile(cmd *cobra.Command, path string) ([]byte, error) {
 		}
 		return body, nil
 	}
+}
+
+// maxTitleLen is the platform's memory title limit (schema maxLength), which
+// it measures in characters after trimming surrounding whitespace.
+const maxTitleLen = 255
+
+const titleUsage = "short title for the memory (at most 255 characters)"
+
+// checkTitle rejects an over-long title before the request, as a usage error.
+func checkTitle(title string) error {
+	if n := utf8.RuneCountInString(strings.TrimSpace(title)); n > maxTitleLen {
+		return exitcode.Usage("--title may be at most %d characters, got %d", maxTitleLen, n)
+	}
+	return nil
 }
 
 // basePath returns /api/v1/{team}/memories, resolving the team (flag > env >

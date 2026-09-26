@@ -296,6 +296,7 @@ vibexp memory list --project my-proj              # filter by project; +paginati
 echo "a useful note" | vibexp memory create --project my-proj --body-file -
 vibexp memory get <id>
 vibexp memory update <id> --status archived       # or --body-file to replace content
+vibexp memory update <id> --title "Deploy checklist"  # --title "" clears it; create takes --title too
 vibexp memory delete <id>                         # prompts on a TTY; --yes for scripts
 ```
 
