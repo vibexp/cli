@@ -251,9 +251,9 @@ into labels and **replaces the memory's existing labels**; a plain
 
 ### Setting labels
 
-`memory`, `artifact`, `blueprint` and `prompt` `create`/`update` take a
-repeatable `--label` (at most 10, 50 characters each), which `list --labels`
-reads back:
+`memory`, `artifact` and `blueprint` `create`/`update` take a repeatable
+`--label` (at most 10, 50 characters each, checked before the request), which
+`list --labels` reads back:
 
 ```bash
 vibexp memory create --body-file note.md --label onboarding --label api
@@ -261,7 +261,9 @@ vibexp blueprint update api --label reviewed        # replaces all existing labe
 vibexp artifact update report --label ""             # clears them
 ```
 
-An `update` without `--label` leaves the labels as they are.
+An `update` without `--label` leaves the labels as they are. `prompt
+create`/`update` have their own `--label`, which sends the values as given,
+with no client-side check (so `--label ""` does not clear them).
 
 ### Freshness in output
 

@@ -129,8 +129,8 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			return path, nil
 		},
 		Spec: listSpec,
-		// Stale only: listPrompts takes freshness but has no metadata param, so
-		// binding --metadata here would silently return the unfiltered list.
+		// Stale + Labels only: listPrompts takes freshness and labels but has no
+		// metadata param, so binding --metadata here would silently return the unfiltered list.
 		Filters: &resource.ListFilters{Stale: true, Labels: true},
 	})
 }
