@@ -30,8 +30,11 @@ anything; go to the code for detail, not to issue bodies.
   `create`/`update` also write it via `--metadata`/`--metadata-json` through the
   shared `resource.MetadataFlags`, merge-by-default on update; memory list
   also has `--tags`; all four of memory/prompt/blueprint/artifact `list` take
-  `--stale` → `freshness=stale`, and `prompt list` takes **only** that one, since
-  `listPrompts` has no metadata param), relations (`vibexp relations` — note the
+  `--stale` → `freshness=stale` and `--labels` → comma-joined `labels=` (OR), and
+  `prompt list` takes **only** those two, since `listPrompts` has no metadata
+  param; memory/artifact/blueprint `create`/`update` write labels via the shared
+  `resource.LabelFlags` (`--label`, sent only when given), prompts keep their
+  own `--label`), relations (`vibexp relations` — note the
   plural, the only one),
   whoami/teams (`team list` plus `team audit`, the v0.12.0 cross-team settings-copy
   trail)/projects — plus `vibexp api <METHOD> <path>` raw passthrough for

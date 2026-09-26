@@ -22,6 +22,8 @@ import (
 //   - Tags → --tags <tag> (repeatable), sugar for metadata.tags=<tag>. Memories
 //     only; the platform stores tags at metadata.tags (v0.9.0, epic #519).
 //   - Stale → --stale, mapping to freshness=stale (v0.11.0, epic #726).
+//   - Labels → --labels <label> (repeatable), sent comma-joined as labels=;
+//     a resource matches when it carries any of them (v0.13.0, vibexp#938).
 type ListFilters struct {
 	// Metadata exposes --metadata (every noun whose endpoint takes it — not
 	// prompts, whose listPrompts has no metadata param).
@@ -32,12 +34,15 @@ type ListFilters struct {
 	Tags bool
 	// Stale exposes --stale.
 	Stale bool
+	// Labels exposes --labels (every curated noun's list endpoint takes it).
+	Labels bool
 
 	// Flag values. Named apart from the opt-in fields above so a slip between
 	// the two does not compile.
-	pairs    []string
-	tagVals  []string
-	staleSet bool
+	pairs     []string
+	tagVals   []string
+	staleSet  bool
+	labelVals []string
 }
 
 // AddFilterFlags binds the flags f opted into onto cmd.
@@ -55,6 +60,10 @@ func AddFilterFlags(cmd *cobra.Command, f *ListFilters) {
 	if f.Stale {
 		cmd.Flags().BoolVar(&f.staleSet, "stale", false,
 			"only resources the team's freshness rules have flagged as stale")
+	}
+	if f.Labels {
+		cmd.Flags().StringArrayVar(&f.labelVals, "labels", nil,
+			"filter by label (repeatable; matches resources carrying any of them)")
 	}
 }
 
@@ -105,7 +114,7 @@ func (f *ListFilters) ApplyToPath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if meta == "" && !f.staleSet {
+	if meta == "" && !f.staleSet && len(f.labelVals) == 0 {
 		return path, nil
 	}
 	u, err := url.Parse(path)
@@ -120,6 +129,9 @@ func (f *ListFilters) ApplyToPath(path string) (string, error) {
 		// The server models this as a single-member enum so a future state can
 		// be added without a type change; anything but "stale" is a 400.
 		q.Set("freshness", "stale")
+	}
+	if len(f.labelVals) > 0 {
+		q.Set("labels", strings.Join(f.labelVals, ","))
 	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil

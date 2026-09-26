@@ -13,10 +13,11 @@ import (
 func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, title, description, typ, subtype, path, status string
 	var meta resource.MetadataFlags
+	var labels resource.LabelFlags
 	cmd := &cobra.Command{
 		Use:   "update <slug>",
 		Short: "Update a blueprint",
-		Long: "Update a blueprint's content (--body-file), title, description, type, subtype, path, status, or metadata. At least one must be given. Resolves the project from --project, VIBEXP_PROJECT, or the active context.\n\n" +
+		Long: "Update a blueprint's content (--body-file), title, description, type, subtype, path, status, labels, or metadata. At least one must be given. Resolves the project from --project, VIBEXP_PROJECT, or the active context.\n\n" +
 			resource.MetadataUpdateHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -51,8 +52,11 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
+			if err := labels.AddTo(payload); err != nil {
+				return err
+			}
 			if len(payload) == 0 && !meta.Set() {
-				return exitcode.Usage("nothing to update: pass --body-file, --title, --description, --type, --subtype, --path, --status, or a metadata flag")
+				return exitcode.Usage("nothing to update: pass --body-file, --title, --description, --type, --subtype, --path, --status, --label, or a metadata flag")
 			}
 
 			itemURL, err := itemPath(rt, args[0])
@@ -72,6 +76,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&subtype, "subtype", "", "new subtype category")
 	cmd.Flags().StringVar(&path, "path", "", "new repo-relative path")
 	cmd.Flags().StringVar(&status, "status", "", "new status")
+	resource.AddLabelFlags(cmd, &labels, true)
 	resource.AddMetadataFlags(cmd, &meta, true)
 	return cmd
 }

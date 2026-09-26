@@ -13,11 +13,12 @@ import (
 func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, status string
 	var meta resource.MetadataFlags
+	var labels resource.LabelFlags
 	cmd := &cobra.Command{
 		Use:   "update <id>",
 		Short: "Update a memory",
-		Long: "Update a memory's content (--body-file), status, project (--project), or\n" +
-			"metadata. At least one must be given.\n\n" + resource.MetadataUpdateHelp,
+		Long: "Update a memory's content (--body-file), status, project (--project),\n" +
+			"labels, or metadata. At least one must be given.\n\n" + resource.MetadataUpdateHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, rt, client, err := resource.RuntimeAndClient(cmd, resolve, getenv)
@@ -42,8 +43,11 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				project, _ := cmd.Flags().GetString("project")
 				payload["project_id"] = project
 			}
+			if err := labels.AddTo(payload); err != nil {
+				return err
+			}
 			if len(payload) == 0 && !meta.Set() {
-				return exitcode.Usage("nothing to update: pass --body-file, --status, --project, or a metadata flag")
+				return exitcode.Usage("nothing to update: pass --body-file, --status, --project, --label, or a metadata flag")
 			}
 
 			base, err := basePath(rt)
@@ -59,6 +63,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with new content, or '-' for stdin")
 	cmd.Flags().StringVar(&status, "status", "", "new status")
+	resource.AddLabelFlags(cmd, &labels, true)
 	resource.AddMetadataFlags(cmd, &meta, true)
 	return cmd
 }

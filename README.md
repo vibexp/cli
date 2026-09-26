@@ -214,13 +214,14 @@ vibexp artifact list --stale --project my-proj      # composes with project scop
 vibexp memory list --tags go --tags cli             # tag filter (values OR)
 vibexp memory list --metadata env=prod --tags go    # keys AND, values within a key OR
 vibexp blueprint list --metadata spec.type=api --stale --limit 10
+vibexp artifact list --labels onboarding --labels api   # label filter (any of them)
 
 # What's gone stale this sprint, as TSV for a script?
 vibexp memory list --stale --limit 100 | cut -f1,2
 ```
 
-`--stale` is available on `memory`, `prompt`, `blueprint` and `artifact` list.
-`--metadata` is available on the other three but **not** `prompt list` (that
+`--stale` and `--labels` are available on `memory`, `prompt`, `blueprint` and
+`artifact` list. `--metadata` is available on the other three but **not** `prompt list` (that
 endpoint has no metadata filter, so the flag is deliberately not offered rather
 than silently ignored); `--tags` is memories-only. Discover what you can filter
 on with `vibexp metadata keys` / `vibexp metadata values`.
@@ -247,6 +248,20 @@ skips the read. Prompts have no metadata. On memories, a `tags` key holding a
 JSON string array (`--metadata-json '{"tags":["x"]}'`) is turned by the server
 into labels and **replaces the memory's existing labels**; a plain
 `--metadata tags=x` is stored as an ordinary string key.
+
+### Setting labels
+
+`memory`, `artifact`, `blueprint` and `prompt` `create`/`update` take a
+repeatable `--label` (at most 10, 50 characters each), which `list --labels`
+reads back:
+
+```bash
+vibexp memory create --body-file note.md --label onboarding --label api
+vibexp blueprint update api --label reviewed        # replaces all existing labels
+vibexp artifact update report --label ""             # clears them
+```
+
+An `update` without `--label` leaves the labels as they are.
 
 ### Freshness in output
 
