@@ -21,7 +21,11 @@ type Pagination struct {
 // LimitHelp is the --limit help shared by every paginated command. The server
 // is authoritative on the maximum (it differs per endpoint), so it is
 // documented here rather than enforced locally.
-const LimitHelp = "maximum items per page (server max 100)"
+const LimitHelp = "maximum items per page (server max " + ServerMaxLimit + ")"
+
+// ServerMaxLimit is the per-page maximum the platform enforces on resource lists
+// and search, as it appears in help and hints.
+const ServerMaxLimit = "100"
 
 // AddPaginationFlags binds --limit/--page/--offset/--all to a Pagination and
 // returns it. A zero value means "unset" (the flag is omitted from the request).

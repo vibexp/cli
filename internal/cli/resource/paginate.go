@@ -93,27 +93,52 @@ func FetchAllPages(ctx context.Context, client *api.RawClient, path string, hdr 
 // so a server that clamps an oversized limit is still walked to the end.
 func lastPage(raw []byte, page, got, limit int) bool {
 	m, ok := readMeta(raw)
-	if ok && m.PerPage != nil && *m.PerPage > 0 {
-		limit = *m.PerPage
+	if size := m.size(); ok && size > 0 {
+		limit = size
 	}
 	if got != limit {
 		return true
 	}
-	if !ok || (m.Page == nil && m.TotalPages == nil) {
+	total, hasTotal := m.totalPages()
+	if !ok || (m.Page == nil && !hasTotal) {
 		return true
 	}
 	if m.Page != nil && *m.Page != page {
 		return true
 	}
-	return m.TotalPages != nil && *m.TotalPages > 0 && page >= *m.TotalPages
+	return hasTotal && total > 0 && page >= total
 }
 
 // pageMeta is the raw pagination metadata of a list response; nil = absent.
 type pageMeta struct {
 	Page       *int `json:"page"`
 	PerPage    *int `json:"per_page"`
+	PageSize   *int `json:"page_size"` // listTeams spells per_page this way
 	TotalPages *int `json:"total_pages"`
 	TotalCount *int `json:"total_count"`
+}
+
+// size is the server-reported page size (per_page, else page_size); 0 = absent.
+func (m pageMeta) size() int {
+	switch {
+	case m.PerPage != nil:
+		return *m.PerPage
+	case m.PageSize != nil:
+		return *m.PageSize
+	}
+	return 0
+}
+
+// totalPages is the reported total_pages, else one derived from total_count and
+// the page size (listTeams reports no total_pages).
+func (m pageMeta) totalPages() (int, bool) {
+	if m.TotalPages != nil {
+		return *m.TotalPages, true
+	}
+	if size := m.size(); m.TotalCount != nil && size > 0 {
+		return (*m.TotalCount + size - 1) / size, true
+	}
+	return 0, false
 }
 
 // readMeta reads a response's pagination metadata from the top level or, for
@@ -128,7 +153,7 @@ func readMeta(raw []byte) (pageMeta, bool) {
 		return pageMeta{}, false
 	}
 	m := top.pageMeta
-	if m.Page == nil && m.PerPage == nil && m.TotalPages == nil && len(top.Data) > 0 {
+	if m.Page == nil && m.size() == 0 && m.TotalPages == nil && len(top.Data) > 0 {
 		var inner pageMeta
 		if json.Unmarshal(top.Data, &inner) == nil {
 			m = inner
@@ -147,14 +172,19 @@ type PageMeta struct {
 
 // ReadPageMeta returns a response's page/total_pages/total_count metadata, read
 // from the top level or, for an enveloped list (listPrompts:
-// {"data":{"prompts":[…],"page":…}}), from under `data`. ok is false when the
-// response carries no total_pages.
+// {"data":{"prompts":[…],"page":…}}), from under `data`. total_pages is derived
+// from total_count and the page size when the response omits it (listTeams).
+// ok is false when neither is available.
 func ReadPageMeta(raw []byte) (PageMeta, bool) {
 	m, ok := readMeta(raw)
-	if !ok || m.TotalPages == nil {
+	if !ok {
 		return PageMeta{}, false
 	}
-	out := PageMeta{Page: 1, TotalPages: *m.TotalPages, TotalCount: -1}
+	total, ok := m.totalPages()
+	if !ok {
+		return PageMeta{}, false
+	}
+	out := PageMeta{Page: 1, TotalPages: total, TotalCount: -1}
 	if m.Page != nil {
 		out.Page = *m.Page
 	}
@@ -179,7 +209,7 @@ func WarnIfPartial(w io.Writer, raw []byte, how string) {
 		if meta.TotalCount >= 0 {
 			count = fmt.Sprintf(" (%d of %d)", len(items), meta.TotalCount)
 		} else {
-			count = fmt.Sprintf(" (%d items)", len(items))
+			count = fmt.Sprintf(" (%d on this page)", len(items))
 		}
 	}
 	_, _ = fmt.Fprintf(w, "showing page %d of %d%s; use %s\n", meta.Page, meta.TotalPages, count, how)

@@ -285,3 +285,42 @@ func TestListAllFollowsServerPerPage(t *testing.T) {
 		t.Errorf("pages fetched = %v, want [1 2 3]", pages)
 	}
 }
+
+// listTeams ignores limit, serves page_size (20) items, and reports no
+// total_pages — --all must still walk every page, and a single page must hint.
+func TestTeamListAllFollowsPageSize(t *testing.T) {
+	const total, size = 25, 20
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/teams", func(w http.ResponseWriter, r *http.Request) {
+		page := 1
+		if p := r.URL.Query().Get("page"); p != "" {
+			page, _ = strconv.Atoi(p)
+		}
+		var teams []string
+		for i := (page - 1) * size; i < page*size && i < total; i++ {
+			teams = append(teams, fmt.Sprintf(`{"id":"t%d","slug":"team-%d","name":"Team %d"}`, i+1, i+1, i+1))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"teams":[%s],"page":%d,"page_size":%d,"total_count":%d}`, strings.Join(teams, ","), page, size, total)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "")
+
+	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "team", "list", "--all")
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr=%q", code, errOut)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != total {
+		t.Errorf("want all %d teams, got %d (%v)", total, len(items), err)
+	}
+
+	_, errOut, code = runAuth(t, cfg, cs, nil, "", "--format", "json", "team", "list")
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr=%q", code, errOut)
+	}
+	if want := "showing page 1 of 2 (20 of 25)"; !strings.Contains(errOut, want) {
+		t.Errorf("stderr = %q, want hint %q", errOut, want)
+	}
+}

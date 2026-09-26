@@ -69,7 +69,7 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 			if err != nil {
 				return resource.UsageOnBadRequest(err)
 			}
-			resource.WarnIfPartial(cmd.ErrOrStderr(), raw, "--page or --limit (max 100)")
+			resource.WarnIfPartial(cmd.ErrOrStderr(), raw, "--page or --limit (max "+resource.ServerMaxLimit+")")
 			return resource.Render(cmd, rt, getenv, raw,
 				&output.TableSpec{Rows: resource.ListRows("results"), Columns: columns})
 		},
