@@ -102,7 +102,7 @@ func fetchPage(ctx context.Context, client *api.RawClient, path string, hdr http
 // The page size compared against is the server's own per_page when reported,
 // so a server that clamps an oversized limit is still walked to the end.
 func lastPage(raw []byte, page, got, limit int) bool {
-	m, ok := readMeta(raw)
+	m, ok := readRawMeta(raw)
 	if size := m.size(); ok && size > 0 {
 		limit = size
 	}
@@ -119,8 +119,8 @@ func lastPage(raw []byte, page, got, limit int) bool {
 	return hasTotal && total > 0 && page >= total
 }
 
-// pageMeta is the raw pagination metadata of a list response; nil = absent.
-type pageMeta struct {
+// rawPageMeta is the raw pagination metadata of a list response; nil = absent.
+type rawPageMeta struct {
 	Page       *int `json:"page"`
 	PerPage    *int `json:"per_page"`
 	PageSize   *int `json:"page_size"` // listTeams spells per_page this way
@@ -129,7 +129,7 @@ type pageMeta struct {
 }
 
 // size is the server-reported page size (per_page, else page_size); 0 = absent.
-func (m pageMeta) size() int {
+func (m rawPageMeta) size() int {
 	switch {
 	case m.PerPage != nil:
 		return *m.PerPage
@@ -141,7 +141,7 @@ func (m pageMeta) size() int {
 
 // totalPages is the reported total_pages, else one derived from total_count and
 // the page size (listTeams reports no total_pages).
-func (m pageMeta) totalPages() (int, bool) {
+func (m rawPageMeta) totalPages() (int, bool) {
 	if m.TotalPages != nil {
 		return *m.TotalPages, true
 	}
@@ -151,20 +151,20 @@ func (m pageMeta) totalPages() (int, bool) {
 	return 0, false
 }
 
-// readMeta reads a response's pagination metadata from the top level or, for
+// readRawMeta reads a response's pagination metadata from the top level or, for
 // an enveloped list (listPrompts: {"data":{"prompts":[…],"page":…}}), from
 // under an object-valued `data`.
-func readMeta(raw []byte) (pageMeta, bool) {
+func readRawMeta(raw []byte) (rawPageMeta, bool) {
 	var top struct {
-		pageMeta
+		rawPageMeta
 		Data json.RawMessage `json:"data"`
 	}
 	if json.Unmarshal(raw, &top) != nil {
-		return pageMeta{}, false
+		return rawPageMeta{}, false
 	}
-	m := top.pageMeta
+	m := top.rawPageMeta
 	if m.Page == nil && m.size() == 0 && m.TotalPages == nil && len(top.Data) > 0 {
-		var inner pageMeta
+		var inner rawPageMeta
 		if json.Unmarshal(top.Data, &inner) == nil {
 			m = inner
 		}
@@ -186,7 +186,7 @@ type PageMeta struct {
 // from total_count and the page size when the response omits it (listTeams).
 // ok is false when neither is available.
 func ReadPageMeta(raw []byte) (PageMeta, bool) {
-	m, ok := readMeta(raw)
+	m, ok := readRawMeta(raw)
 	if !ok {
 		return PageMeta{}, false
 	}
