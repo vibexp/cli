@@ -65,4 +65,7 @@ func TestAddLabelFlagsUpdateUsage(t *testing.T) {
 	if !strings.Contains(u, "replaces") || !strings.Contains(u, "at most 10, 50 characters") {
 		t.Errorf("update --label usage = %q, want the replace semantics and the limits", u)
 	}
+	if help := cmd.Flags().FlagUsages(); strings.Contains(help, "(default") {
+		t.Errorf("--label help shows a default: %q", help)
+	}
 }

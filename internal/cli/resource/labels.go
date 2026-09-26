@@ -57,7 +57,14 @@ func (f *LabelFlags) AddTo(payload map[string]any) {
 // blank values and enforces the platform's limits as each value is parsed.
 type labelValue struct{ vals *[]string }
 
-func (v labelValue) String() string { return "[" + strings.Join(*v.vals, ",") + "]" }
+// String is "" when unset so --help prints no "(default [])": pflag only
+// recognises "[]" as a zero default for its own array types.
+func (v labelValue) String() string {
+	if len(*v.vals) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(*v.vals, ",") + "]"
+}
 
 func (v labelValue) Type() string { return "stringArray" }
 
