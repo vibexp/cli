@@ -15,6 +15,7 @@ import (
 func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, title, description, typ, status string
 	var meta resource.MetadataFlags
+	var labels resource.LabelFlags
 	cmd := &cobra.Command{
 		Use:   "create <slug>",
 		Short: "Create an artifact",
@@ -62,6 +63,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
+			labels.AddTo(payload)
 			if err := meta.AddTo(payload); err != nil {
 				return err
 			}
@@ -73,6 +75,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&description, "description", "", "optional description")
 	cmd.Flags().StringVar(&typ, "type", "", "type category (defaults to general server-side)")
 	cmd.Flags().StringVar(&status, "status", "", "initial status")
+	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd
 }

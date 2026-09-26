@@ -99,10 +99,22 @@ func TestListFiltersApplyToPathStale(t *testing.T) {
 			path:  "/api/v1/t/artifacts?project_id=p-1",
 			want:  "/api/v1/t/artifacts?freshness=stale&project_id=p-1",
 		},
+		{
+			name:  "labels are comma-joined into one param",
+			setup: func(f *ListFilters) { f.labelVals = []string{"a", "b"} },
+			path:  "/api/v1/t/memories",
+			want:  "/api/v1/t/memories?labels=a%2Cb",
+		},
+		{
+			name:  "labels compose with stale",
+			setup: func(f *ListFilters) { f.labelVals = []string{"x"}; f.staleSet = true },
+			path:  "/api/v1/t/prompts",
+			want:  "/api/v1/t/prompts?freshness=stale&labels=x",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := &ListFilters{Metadata: true, Tags: true, Stale: true}
+			f := &ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true}
 			tt.setup(f)
 			got, err := f.ApplyToPath(tt.path)
 			if err != nil {
@@ -120,7 +132,7 @@ func TestListFiltersApplyToPathStale(t *testing.T) {
 // normalise the query, so the early return has to skip it entirely.
 func TestListFiltersApplyToPathUnsetIsByteIdentical(t *testing.T) {
 	path := "/api/v1/t/memories?b=2&a=1"
-	got, err := (&ListFilters{Metadata: true, Tags: true, Stale: true}).ApplyToPath(path)
+	got, err := (&ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true}).ApplyToPath(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,26 +151,26 @@ func TestAddFilterFlagsBindsOnlyOptedIn(t *testing.T) {
 		want    map[string]bool // flag name -> should be bound
 	}{
 		{
-			name:    "prompts: stale only",
-			filters: ListFilters{Stale: true},
-			want:    map[string]bool{"stale": true, "metadata": false, "tags": false},
+			name:    "prompts: stale + labels",
+			filters: ListFilters{Stale: true, Labels: true},
+			want:    map[string]bool{"stale": true, "labels": true, "metadata": false, "tags": false},
 		},
 		{
-			name:    "artifacts and blueprints: metadata + stale",
-			filters: ListFilters{Metadata: true, Stale: true},
-			want:    map[string]bool{"stale": true, "metadata": true, "tags": false},
+			name:    "artifacts and blueprints: metadata + stale + labels",
+			filters: ListFilters{Metadata: true, Stale: true, Labels: true},
+			want:    map[string]bool{"stale": true, "labels": true, "metadata": true, "tags": false},
 		},
 		{
 			name:    "memories: everything",
-			filters: ListFilters{Metadata: true, Tags: true, Stale: true},
-			want:    map[string]bool{"stale": true, "metadata": true, "tags": true},
+			filters: ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true},
+			want:    map[string]bool{"stale": true, "labels": true, "metadata": true, "tags": true},
 		},
 		{
 			// --tags is sugar over the metadata containment param, so without
 			// Metadata there is nothing to hang it on and it must not bind.
 			name:    "tags without metadata binds nothing",
 			filters: ListFilters{Tags: true, Stale: true},
-			want:    map[string]bool{"stale": true, "metadata": false, "tags": false},
+			want:    map[string]bool{"stale": true, "labels": false, "metadata": false, "tags": false},
 		},
 	}
 	for _, tt := range tests {

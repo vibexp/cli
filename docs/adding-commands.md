@@ -78,9 +78,9 @@ accepts. The shared builder binds those flags and merges them into the query;
 filters compose with each other and with pagination.
 
 ```go
-Filters: &resource.ListFilters{Stale: true},                              // prompts
-Filters: &resource.ListFilters{Metadata: true, Stale: true},              // artifacts, blueprints
-Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true},  // memories
+Filters: &resource.ListFilters{Stale: true, Labels: true},                              // prompts
+Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true},              // artifacts, blueprints
+Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true},  // memories
 ```
 
 | Field | Flag | Query param | Since |
@@ -88,9 +88,10 @@ Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true},  // mem
 | `Metadata` | `--metadata key=value` (repeatable) | `metadata=<JSON containment>` — keys AND, values within a key OR | platform v0.9.0 |
 | `Tags` | `--tags <tag>` (repeatable) | folded into `metadata.tags` — memories only | platform v0.9.0 |
 | `Stale` | `--stale` | `freshness=stale` | platform v0.11.0 |
+| `Labels` | `--labels <label>` (repeatable) | `labels=a,b` — a resource matches when it carries any of them | platform v0.13.0 |
 
 **Opt in only to what the endpoint takes.** `listPrompts` has no `metadata`
-param, so `promptcmd` sets `Stale` alone — binding `--metadata` there would let
+param, so `promptcmd` sets only `Stale` and `Labels` — binding `--metadata` there would let
 a user narrow a list and receive the unfiltered one, which reads like a real
 answer. The same reasoning is why `freshness` is a strict server-side enum
 (anything but `stale` is a 400) and why `--stale` is a bool rather than a
@@ -111,6 +112,17 @@ is sent, so a bare overlay would wipe every key the user did not repeat. Both
 are no-ops when no metadata flag was given. `--body-file -` together with
 `--metadata-json -` is rejected by the helper itself (it reads the command's
 `body-file` flag).
+
+### Writing labels
+
+Create/update verbs of a noun whose request schema has `labels` bind
+`resource.LabelFlags` via `resource.AddLabelFlags(cmd, &labels, update)` and
+call `labels.AddTo(payload)` — on update **before** the "nothing to update"
+check, so `--label` alone counts. It sends `labels` only when `--label` was
+given (an update without it never clears them; `--label ""` sends `[]`). The
+flag's own value type rejects more than 10 labels or one over 50 characters
+while flags are parsed, so it is a usage error (exit 2) before anything is read
+or sent, and `AddTo` has no error to return. `promptcmd` predates the helper and keeps its own `--label`.
 
 ## Conventions
 

@@ -15,6 +15,7 @@ import (
 func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, status string
 	var meta resource.MetadataFlags
+	var labels resource.LabelFlags
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a memory",
@@ -48,6 +49,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
+			labels.AddTo(payload)
 			if err := meta.AddTo(payload); err != nil {
 				return err
 			}
@@ -56,6 +58,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with the memory content, or '-' for stdin")
 	cmd.Flags().StringVar(&status, "status", "", "initial status (e.g. active)")
+	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd
 }

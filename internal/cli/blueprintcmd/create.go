@@ -15,6 +15,7 @@ import (
 func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	var bodyFile, title, description, typ, subtype, path, status string
 	var meta resource.MetadataFlags
+	var labels resource.LabelFlags
 	cmd := &cobra.Command{
 		Use:   "create <slug>",
 		Short: "Create a blueprint",
@@ -68,6 +69,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if status != "" {
 				payload["status"] = status
 			}
+			labels.AddTo(payload)
 			if err := meta.AddTo(payload); err != nil {
 				return err
 			}
@@ -81,6 +83,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&subtype, "subtype", "", "subtype category")
 	cmd.Flags().StringVar(&path, "path", "", "repo-relative path to freeze for this blueprint")
 	cmd.Flags().StringVar(&status, "status", "", "initial status")
+	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd
 }
