@@ -81,7 +81,10 @@ directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
 - **Error mapper (`errors.go`)** — `api.Check(status, body)` turns any non-2xx
   into a single `*api.Error` carrying the RFC 7807 `detail`, `validation_errors`,
   and `request_id`. It satisfies `exitcode.ExitCoder` (401/403 → 4, else 1), and
-  the root logs the `request_id` to the file log on failure.
+  the root logs the `request_id` to the file log on failure. One exception: a
+  400 from a curated `list`/`search` is re-coded to 2 by
+  `resource.UsageOnBadRequest`, since that request is built from the user's
+  flags (`--limit`, `--page`, filters); the message and `request_id` are kept.
 - **Resolution (`resolve.go`)** — `api.Team(rt)` / `api.Project(rt)` return the
   already-precedence-resolved id/slug (flag > env > context), or a usage error
   (exit 2) naming all three ways to set it.
@@ -175,7 +178,8 @@ Defined once in `internal/exitcode` and mapped centrally in `main.go`:
 
 Commands return `*exitcode.CodedError` (directly or wrapped) to select a code;
 anything unclassified maps to `1`. Cobra flag-parse errors map to `2` via the
-root's `FlagErrorFunc`.
+root's `FlagErrorFunc`, and a 400 from a curated `list`/`search` maps to `2`
+via `resource.UsageOnBadRequest` (`vibexp api` keeps the plain API mapping).
 
 ## Build metadata
 

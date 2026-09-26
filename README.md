@@ -425,8 +425,9 @@ vibexp api GET /api/v1/{team}/memories --paginate  # merge every page into one J
   `list --all` — until a short page (sized by the server's `per_page`), the
   response's `total_pages`, or a response with no page metadata (an endpoint
   that does not paginate returns its one page), and emits the union of items.
-- Exit codes and RFC 7807 errors (with `request_id`) are identical to curated
-  commands.
+- Exit codes and RFC 7807 errors (with `request_id`) match curated commands,
+  except that a 400 exits `1` here, where a curated `list`/`search` reports it as
+  a usage error (`2`).
 
 ## Exit codes
 
