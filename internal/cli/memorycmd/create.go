@@ -32,9 +32,6 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			if err := meta.CheckStdin(bodyFile); err != nil {
-				return err
-			}
 			text, err := readBodyFile(cmd, bodyFile)
 			if err != nil {
 				return err

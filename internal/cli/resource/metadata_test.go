@@ -150,11 +150,21 @@ func TestMetadataFlagsSetAndStdin(t *testing.T) {
 			t.Errorf("Set() with %v = false", args)
 		}
 	}
-	if err := metaFlags(t, false, "--metadata-json", "-").CheckStdin("-"); !isUsage(err) {
-		t.Errorf("CheckStdin both stdin = %v, want usage error", err)
-	}
-	if err := metaFlags(t, false, "--metadata-json", "-").CheckStdin("body.md"); err != nil {
-		t.Errorf("CheckStdin = %v", err)
+	for _, tc := range []struct {
+		body string
+		want bool // usage error expected
+	}{{"-", true}, {"body.md", false}} {
+		var f resource.MetadataFlags
+		cmd := &cobra.Command{Use: "x"}
+		cmd.Flags().String("body-file", "", "")
+		resource.AddMetadataFlags(cmd, &f, false)
+		if err := cmd.ParseFlags([]string{"--body-file", tc.body, "--metadata-json", "-"}); err != nil {
+			t.Fatal(err)
+		}
+		_, err := f.Build(strings.NewReader(`{"a":1}`))
+		if isUsage(err) != tc.want {
+			t.Errorf("--body-file %s with --metadata-json -: err = %v, want usage error %v", tc.body, err, tc.want)
+		}
 	}
 	// Create commands do not expose the update-only flags.
 	cmd := &cobra.Command{Use: "x"}
@@ -211,5 +221,38 @@ func TestMetadataFlagsForUpdate(t *testing.T) {
 	}
 	if _, err := metaFlags(t, true, "--metadata", "a=1").ForUpdate(ctx, client, "/garbled", strings.NewReader("")); err == nil {
 		t.Error("undecodable GET body: want an error")
+	}
+}
+
+func TestMetadataFlagsAddToPayload(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"i-1","metadata":{"a":"1"}}`))
+	}))
+	defer srv.Close()
+	client := rawClient(t, srv)
+	ctx := context.Background()
+
+	// No flag → payload untouched, no request.
+	payload := map[string]any{}
+	if err := metaFlags(t, false).AddTo(payload); err != nil || len(payload) != 0 {
+		t.Errorf("AddTo unset = %v, %v", payload, err)
+	}
+	if err := metaFlags(t, true).AddMerged(ctx, client, "/item", payload); err != nil || len(payload) != 0 {
+		t.Errorf("AddMerged unset = %v, %v", payload, err)
+	}
+
+	if err := metaFlags(t, false, "--metadata", "k=v").AddTo(payload); err != nil || asJSON(t, payload) != `{"metadata":{"k":"v"}}` {
+		t.Errorf("AddTo = %v, %v", payload, err)
+	}
+	payload = map[string]any{}
+	if err := metaFlags(t, true, "--metadata", "b=2").AddMerged(ctx, client, "/item", payload); err != nil || asJSON(t, payload) != `{"metadata":{"a":"1","b":"2"}}` {
+		t.Errorf("AddMerged = %v, %v", payload, err)
+	}
+	if err := metaFlags(t, false, "--metadata", "bad").AddTo(payload); !isUsage(err) {
+		t.Errorf("AddTo malformed = %v", err)
+	}
+	if err := metaFlags(t, true, "--metadata", "bad").AddMerged(ctx, client, "/item", payload); !isUsage(err) {
+		t.Errorf("AddMerged malformed = %v", err)
 	}
 }

@@ -73,10 +73,14 @@ func (f *MetadataFlags) jsonGiven() bool {
 	return f.jsonArg != "" || (f.cmd != nil && f.cmd.Flags().Changed("metadata-json"))
 }
 
-// CheckStdin rejects reading both the body and the metadata JSON from stdin,
-// which would hand the second reader an empty stream.
-func (f *MetadataFlags) CheckStdin(bodyFile string) error {
-	if bodyFile == "-" && f.jsonArg == "-" {
+// stdinConflict rejects reading both the command's --body-file and the
+// metadata JSON from stdin, which would hand the second reader an empty stream.
+// It runs before any request, so the conflict never reaches the server.
+func (f *MetadataFlags) stdinConflict() error {
+	if f.jsonArg != "-" || f.cmd == nil {
+		return nil
+	}
+	if body, _ := f.cmd.Flags().GetString("body-file"); body == "-" {
 		return exitcode.Usage("--body-file and --metadata-json cannot both read stdin ('-')")
 	}
 	return nil
@@ -86,6 +90,9 @@ func (f *MetadataFlags) CheckStdin(bodyFile string) error {
 // then the --metadata pairs overlaid on it. in is read when --metadata-json is
 // '-'. Every malformed input is a usage error.
 func (f *MetadataFlags) Build(in io.Reader) (map[string]any, error) {
+	if err := f.stdinConflict(); err != nil {
+		return nil, err
+	}
 	out := map[string]any{}
 	if f.jsonGiven() {
 		obj, err := parseMetadataJSON(f.jsonArg, in)

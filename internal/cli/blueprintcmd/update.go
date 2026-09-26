@@ -26,9 +26,6 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			}
 
 			payload := map[string]any{}
-			if err := meta.CheckStdin(bodyFile); err != nil {
-				return err
-			}
 			content, err := readBodyFile(cmd, bodyFile)
 			if err != nil {
 				return err
