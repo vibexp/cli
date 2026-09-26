@@ -21,8 +21,9 @@ import (
 const MetadataHelp = "Metadata is set with --metadata key=value (repeatable; values are\n" +
 	"strings) and/or --metadata-json '<object>' (inline JSON, @file, or '-' for\n" +
 	"stdin) for numbers, bools, arrays and nested objects; --metadata wins on a\n" +
-	"key conflict. On memories the server folds a metadata \"tags\" key into the\n" +
-	"memory's labels, so it is not stored as metadata."
+	"key conflict. On memories, a \"tags\" key holding a JSON string array is\n" +
+	"turned by the server into labels (replacing the memory's existing labels)\n" +
+	"and is not stored as metadata; a plain --metadata tags=x stays a string key."
 
 // MetadataUpdateHelp adds the update-only semantics to MetadataHelp.
 const MetadataUpdateHelp = MetadataHelp + "\n\n" +
@@ -39,11 +40,17 @@ type MetadataFlags struct {
 	jsonArg string
 	unset   []string
 	replace bool
+
+	// cmd is the command the flags are bound to: an explicitly empty
+	// --metadata-json is an error, not "unset", so presence is read from
+	// cobra rather than from the value.
+	cmd *cobra.Command
 }
 
 // AddMetadataFlags binds --metadata and --metadata-json onto cmd, plus
 // --unset-metadata and --replace-metadata when update is true.
 func AddMetadataFlags(cmd *cobra.Command, f *MetadataFlags, update bool) {
+	f.cmd = cmd
 	cmd.Flags().StringArrayVar(&f.pairs, "metadata", nil,
 		"set a metadata key as key=value (repeatable; value is a string)")
 	cmd.Flags().StringVar(&f.jsonArg, "metadata-json", "",
@@ -58,7 +65,12 @@ func AddMetadataFlags(cmd *cobra.Command, f *MetadataFlags, update bool) {
 
 // Set reports whether any metadata flag was given.
 func (f *MetadataFlags) Set() bool {
-	return len(f.pairs) > 0 || f.jsonArg != "" || len(f.unset) > 0 || f.replace
+	return len(f.pairs) > 0 || f.jsonGiven() || len(f.unset) > 0 || f.replace
+}
+
+// jsonGiven reports whether --metadata-json was passed, even as "".
+func (f *MetadataFlags) jsonGiven() bool {
+	return f.jsonArg != "" || (f.cmd != nil && f.cmd.Flags().Changed("metadata-json"))
 }
 
 // CheckStdin rejects reading both the body and the metadata JSON from stdin,
@@ -75,7 +87,7 @@ func (f *MetadataFlags) CheckStdin(bodyFile string) error {
 // '-'. Every malformed input is a usage error.
 func (f *MetadataFlags) Build(in io.Reader) (map[string]any, error) {
 	out := map[string]any{}
-	if f.jsonArg != "" {
+	if f.jsonGiven() {
 		obj, err := parseMetadataJSON(f.jsonArg, in)
 		if err != nil {
 			return nil, err

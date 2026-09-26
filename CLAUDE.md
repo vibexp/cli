@@ -26,7 +26,9 @@ anything; go to the code for detail, not to issue bodies.
 - **Grammar:** `vibexp <noun> <verb>` (e.g. `vibexp memory list`). Curated commands for
   memories, blueprints, prompts (incl. `prompt render`), artifacts, feeds, search,
   attachments, metadata (`vibexp metadata keys|values` — discovery backing the
-  `--metadata key=value` list filter on memories/artifacts/blueprints; memory list
+  `--metadata key=value` list filter on memories/artifacts/blueprints, whose
+  `create`/`update` also write it via `--metadata`/`--metadata-json` through the
+  shared `resource.MetadataFlags`, merge-by-default on update; memory list
   also has `--tags`; all four of memory/prompt/blueprint/artifact `list` take
   `--stale` → `freshness=stale`, and `prompt list` takes **only** that one, since
   `listPrompts` has no metadata param), relations (`vibexp relations` — note the

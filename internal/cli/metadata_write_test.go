@@ -136,6 +136,7 @@ func TestMetadataMalformedIsUsageAndSendsNothing(t *testing.T) {
 		{"--metadata", "=x"},
 		{"--metadata-json", "{nope"},
 		{"--metadata-json", "[1]"},
+		{"--metadata-json", ""},
 	}
 	for _, n := range metaWriteNouns {
 		for _, flags := range bad {

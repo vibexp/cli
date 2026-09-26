@@ -243,8 +243,10 @@ vibexp blueprint update api --replace-metadata --metadata spec.type=api   # repl
 `--metadata` values are strings; use `--metadata-json` for numbers, bools and
 nested values (`--metadata` wins on a key conflict). `update` reads the resource
 first to merge, so a concurrent write in between is lost; `--replace-metadata`
-skips the read. Prompts have no metadata. On memories the server turns a `tags`
-metadata key into labels.
+skips the read. Prompts have no metadata. On memories, a `tags` key holding a
+JSON string array (`--metadata-json '{"tags":["x"]}'`) is turned by the server
+into labels and **replaces the memory's existing labels**; a plain
+`--metadata tags=x` is stored as an ordinary string key.
 
 ### Freshness in output
 

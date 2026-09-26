@@ -85,6 +85,7 @@ func TestMetadataFlagsBuildRejects(t *testing.T) {
 		{"no equals", []string{"--metadata", "novalue"}},
 		{"empty key", []string{"--metadata", "=x"}},
 		{"invalid json", []string{"--metadata-json", "{nope"}},
+		{"empty json", []string{"--metadata-json", ""}},
 		{"json array", []string{"--metadata-json", "[1,2]"}},
 		{"json scalar", []string{"--metadata-json", `"x"`}},
 		{"json null", []string{"--metadata-json", "null"}},
@@ -141,7 +142,7 @@ func TestMetadataFlagsSetAndStdin(t *testing.T) {
 		t.Error("Set() with no flags = true")
 	}
 	for _, args := range [][]string{
-		{"--metadata", "a=1"}, {"--metadata-json", "{}"}, {"--unset-metadata", "a"}, {"--replace-metadata"},
+		{"--metadata", "a=1"}, {"--metadata-json", "{}"}, {"--metadata-json", ""}, {"--unset-metadata", "a"}, {"--replace-metadata"},
 	} {
 		if !metaFlags(t, true, args...).Set() {
 			t.Errorf("Set() with %v = false", args)
