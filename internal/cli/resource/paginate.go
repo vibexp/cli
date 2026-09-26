@@ -75,17 +75,66 @@ func FetchAllPages(ctx context.Context, client *api.RawClient, path string, hdr 
 			break
 		}
 		items = append(items, pageItems...)
-		// Stop on a short/empty page, or once the response's own total_pages
-		// says we're done (guards against an endpoint that always returns a
-		// full page and would otherwise loop forever).
-		if len(pageItems) < limit {
-			break
-		}
-		if meta, ok := ReadPageMeta(raw); ok && meta.TotalPages > 0 && page >= meta.TotalPages {
+		if lastPage(raw, page, len(pageItems), limit) {
 			break
 		}
 	}
 	return items, nil, nil
+}
+
+// lastPage reports whether the walk must stop after this page. Besides a
+// short/empty page and the response's own total_pages, it stops when the
+// endpoint evidently does not paginate — it reports no page metadata at all,
+// returned more than the limit, or answered a different page than the one
+// asked for (e.g. GET /attachments, which ignores page/limit and returns every
+// item on every request). Without those guards such an endpoint loops forever.
+//
+// The page size compared against is the server's own per_page when reported,
+// so a server that clamps an oversized limit is still walked to the end.
+func lastPage(raw []byte, page, got, limit int) bool {
+	m, ok := readMeta(raw)
+	if ok && m.PerPage != nil && *m.PerPage > 0 {
+		limit = *m.PerPage
+	}
+	if got != limit {
+		return true
+	}
+	if !ok || (m.Page == nil && m.TotalPages == nil) {
+		return true
+	}
+	if m.Page != nil && *m.Page != page {
+		return true
+	}
+	return m.TotalPages != nil && *m.TotalPages > 0 && page >= *m.TotalPages
+}
+
+// pageMeta is the raw pagination metadata of a list response; nil = absent.
+type pageMeta struct {
+	Page       *int `json:"page"`
+	PerPage    *int `json:"per_page"`
+	TotalPages *int `json:"total_pages"`
+	TotalCount *int `json:"total_count"`
+}
+
+// readMeta reads a response's pagination metadata from the top level or, for
+// an enveloped list (listPrompts: {"data":{"prompts":[…],"page":…}}), from
+// under an object-valued `data`.
+func readMeta(raw []byte) (pageMeta, bool) {
+	var top struct {
+		pageMeta
+		Data json.RawMessage `json:"data"`
+	}
+	if json.Unmarshal(raw, &top) != nil {
+		return pageMeta{}, false
+	}
+	m := top.pageMeta
+	if m.Page == nil && m.PerPage == nil && m.TotalPages == nil && len(top.Data) > 0 {
+		var inner pageMeta
+		if json.Unmarshal(top.Data, &inner) == nil {
+			m = inner
+		}
+	}
+	return m, true
 }
 
 // PageMeta is the pagination metadata a list response carries.
@@ -101,25 +150,8 @@ type PageMeta struct {
 // {"data":{"prompts":[…],"page":…}}), from under `data`. ok is false when the
 // response carries no total_pages.
 func ReadPageMeta(raw []byte) (PageMeta, bool) {
-	type meta struct {
-		Page       *int `json:"page"`
-		TotalPages *int `json:"total_pages"`
-		TotalCount *int `json:"total_count"`
-	}
-	var top struct {
-		meta
-		Data json.RawMessage `json:"data"`
-	}
-	if json.Unmarshal(raw, &top) != nil {
-		return PageMeta{}, false
-	}
-	m := top.meta
-	if m.TotalPages == nil && len(top.Data) > 0 {
-		if json.Unmarshal(top.Data, &m) != nil {
-			return PageMeta{}, false
-		}
-	}
-	if m.TotalPages == nil {
+	m, ok := readMeta(raw)
+	if !ok || m.TotalPages == nil {
 		return PageMeta{}, false
 	}
 	out := PageMeta{Page: 1, TotalPages: *m.TotalPages, TotalCount: -1}

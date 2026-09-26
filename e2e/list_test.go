@@ -30,7 +30,8 @@ func TestListOverOnePage(t *testing.T) {
 		t.Error("the partial-page hint leaked onto stdout")
 	}
 
-	args = []string{"memory", "list", "--all", "--limit", "1", "--team", teamID, "--format", "json"}
+	// The walk covers the whole shared team, so page at the max, not 1.
+	args = []string{"memory", "list", "--all", "--limit", "100", "--team", teamID, "--format", "json"}
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		stdout, stderr, code := run(t, authEnv(), args...)

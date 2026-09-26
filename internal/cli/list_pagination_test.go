@@ -18,6 +18,14 @@ import (
 // rejected with a 400. Every requested page number is recorded.
 func pagedArtifactServer(t *testing.T, total int, pages *[]int) *httptest.Server {
 	t.Helper()
+	return clampedArtifactServer(t, total, 0, pages)
+}
+
+// clampedArtifactServer is pagedArtifactServer serving at most clamp items per
+// page (0 = no clamp) whatever limit is asked for, reporting the clamped
+// per_page the way a server enforcing its own maximum does.
+func clampedArtifactServer(t *testing.T, total, clamp int, pages *[]int) *httptest.Server {
+	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/the-team/artifacts", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -30,6 +38,9 @@ func pagedArtifactServer(t *testing.T, total int, pages *[]int) *httptest.Server
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"title":"Bad Request","status":400,"detail":"limit must be between 1 and 100","request_id":"req-400"}`))
 			return
+		}
+		if clamp > 0 && perPage > clamp {
+			perPage = clamp
 		}
 		page := 1
 		if p := q.Get("page"); p != "" {
@@ -214,5 +225,63 @@ func TestSearchWarnsOnStderrWhenMorePagesExist(t *testing.T) {
 	}
 	if want := "showing page 1 of 4 (1 of 4); use --page or --limit (max 100)"; !strings.Contains(errOut, want) {
 		t.Errorf("stderr = %q, want hint %q", errOut, want)
+	}
+}
+
+// The attachments endpoint ignores page/limit and returns every item with no
+// page metadata. --all must stop after one request instead of looping forever.
+func TestListAllStopsOnUnpaginatedEndpoint(t *testing.T) {
+	hits := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/the-team/attachments", func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		if hits > 5 {
+			t.Error("--all kept walking an unpaginated endpoint")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"attachments":[{"id":"x1"},{"id":"x2"}],"total_count":2,"total_size_bytes":10}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	for _, limit := range []string{"1", "2"} {
+		hits = 0
+		out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
+			"attachment", "list", "--owner-id", "o-1", "--all", "--limit", limit)
+		if code != 0 {
+			t.Fatalf("--limit %s: exit = %d, stderr=%q", limit, code, errOut)
+		}
+		var items []map[string]any
+		if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != 2 {
+			t.Errorf("--limit %s: want the 2 items once, got %s", limit, out)
+		}
+		if hits != 1 {
+			t.Errorf("--limit %s: requests = %d, want 1", limit, hits)
+		}
+	}
+}
+
+// A server that serves fewer items per page than asked (it clamps the limit)
+// reports its real per_page; --all must walk to the end, not stop after the
+// first "short" page.
+func TestListAllFollowsServerPerPage(t *testing.T) {
+	var pages []int
+	srv := clampedArtifactServer(t, 5, 2, &pages)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, "the-team")
+
+	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "artifact", "list", "--all", "--limit", "50")
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr=%q", code, errOut)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != 5 {
+		t.Errorf("want all 5 artifacts, got %s", out)
+	}
+	if fmt.Sprint(pages) != "[1 2 3]" {
+		t.Errorf("pages fetched = %v, want [1 2 3]", pages)
 	}
 }
