@@ -385,50 +385,6 @@ func TestPromptGetBodyRaw(t *testing.T) {
 	}
 }
 
-// TestPromptGetBodyShowRelations: the relations summary still goes to stderr,
-// so stdout stays the pure body.
-func TestPromptGetBodyShowRelations(t *testing.T) {
-	var cap promptCapture
-	srv := promptServer(t, &cap)
-	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
-
-	out, errOut, code := runAuth(t, cfg, cs, nil, "", "prompt", "get", "greet", "--body", "--show-relations")
-	if code != 0 || out != promptBody {
-		t.Fatalf("exit=%d stdout=%q", code, out)
-	}
-	if !strings.Contains(errOut, "related (1)") {
-		t.Errorf("relations summary missing from stderr: %q", errOut)
-	}
-}
-
-func TestPromptGetBodyConflicts(t *testing.T) {
-	var cap promptCapture
-	srv := promptServer(t, &cap)
-	defer srv.Close()
-	cfg, cs := apiFixture(t, srv.URL, "the-team")
-
-	for _, args := range [][]string{
-		{"--format", "json", "prompt", "get", "greet", "--body"},
-		{"prompt", "get", "greet", "--body", "--jq", ".body"},
-	} {
-		out, errOut, code := runAuth(t, cfg, cs, nil, "", args...)
-		if code != exitcode.UsageErr {
-			t.Errorf("%v exit = %d, want 2", args, code)
-		}
-		if out != "" {
-			t.Errorf("%v wrote stdout on usage error: %q", args, out)
-		}
-		flag := args[0]
-		if flag == "prompt" {
-			flag = "--jq"
-		}
-		if !strings.Contains(errOut, flag) {
-			t.Errorf("%v error should name %s: %q", args, flag, errOut)
-		}
-	}
-}
-
 // A VIBEXP_FORMAT default is not an explicit --format, so --body wins.
 func TestPromptGetBodyIgnoresFormatEnv(t *testing.T) {
 	var cap promptCapture

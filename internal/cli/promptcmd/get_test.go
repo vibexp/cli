@@ -18,7 +18,10 @@ import (
 )
 
 // runGet drives `get` under a stand-in root carrying the global --format/--jq
-// flags, against a server that answers every request with resp. All data is
+// flags, against a server that answers every request with resp; a returned
+// error is appended to stderr, as the real root prints it. The --body contract
+// lives here (Sonar measures coverage per package); internal/cli/prompt_test.go
+// keeps only the end-to-end round trip and the VIBEXP_FORMAT case. All data is
 // fabricated.
 func runGet(t *testing.T, resp string, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
@@ -44,8 +47,11 @@ func runGet(t *testing.T, resp string, args ...string) (stdout, stderr string, c
 	root.SetErr(&errOut)
 	root.SetArgs(append([]string{"get"}, args...))
 	ctx := clictx.WithRuntime(context.Background(), &config.Runtime{BaseURL: srv.URL, Team: "the-team"})
-	code = exitcode.FromError(root.ExecuteContext(ctx))
-	return out.String(), errOut.String(), code
+	err := root.ExecuteContext(ctx)
+	if err != nil {
+		errOut.WriteString(err.Error())
+	}
+	return out.String(), errOut.String(), exitcode.FromError(err)
 }
 
 func TestGetBody(t *testing.T) {
@@ -61,8 +67,8 @@ func TestGetBody(t *testing.T) {
 	}{
 		{"raw body", prompt, []string{"greet", "--body"}, 0, body, ""},
 		{"relations to stderr", prompt, []string{"greet", "--body", "--show-relations"}, 0, body, "related (1)"},
-		{"with --format", prompt, []string{"greet", "--body", "--format", "json"}, exitcode.UsageErr, "", ""},
-		{"with --jq", prompt, []string{"greet", "--body", "--jq", ".body"}, exitcode.UsageErr, "", ""},
+		{"with --format", prompt, []string{"greet", "--body", "--format", "json"}, exitcode.UsageErr, "", "--body cannot be combined with --format"},
+		{"with --jq", prompt, []string{"greet", "--body", "--jq", ".body"}, exitcode.UsageErr, "", "--body cannot be combined with --jq"},
 		{"unparsable response", `[]`, []string{"greet", "--body"}, exitcode.RuntimeErr, "", ""},
 	}
 	for _, tc := range tests {
