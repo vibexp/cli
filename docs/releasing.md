@@ -17,7 +17,7 @@ The `Release` workflow then, on the `v*` tag:
    `CGO_ENABLED=0`) with version/commit/date/`InstallSource` stamped via ldflags,
 2. generates shell completions + man pages (`go run ./cmd/docgen`),
 3. archives them (`vibexp_<version>_<os>_<arch>.tar.gz`, `.zip` on Windows) with
-   completions, man pages, and the README bundled in,
+   completions, man pages, the README and the LICENSE bundled in,
 4. writes `checksums.txt`,
 5. builds a changelog grouped from the conventional-commit history,
 6. publishes the **GitHub Release**, and

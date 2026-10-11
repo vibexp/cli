@@ -77,6 +77,7 @@ archives:
       - src: manpages/*
         dst: manpages
       - README.md
+      - LICENSE
 
   # Homebrew-only archives (InstallSource=brew). Distinct name so the
   # self-updater never mistakes them for a canonical asset.
@@ -90,6 +91,7 @@ archives:
       - src: manpages/*
         dst: manpages
       - README.md
+      - LICENSE
 
 checksum:
   name_template: "checksums.txt"
