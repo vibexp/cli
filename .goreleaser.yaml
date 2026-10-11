@@ -77,6 +77,7 @@ archives:
       - src: manpages/*
         dst: manpages
       - README.md
+      - LICENSE
 
   # Homebrew-only archives (InstallSource=brew). Distinct name so the
   # self-updater never mistakes them for a canonical asset.
@@ -90,6 +91,7 @@ archives:
       - src: manpages/*
         dst: manpages
       - README.md
+      - LICENSE
 
 checksum:
   name_template: "checksums.txt"
@@ -134,8 +136,6 @@ homebrew_casks:
     directory: Casks
     homepage: "https://github.com/vibexp/cli"
     description: "Command-line interface for the VibeXP platform"
-    url:
-      verified: "github.com/vibexp/cli/"
     # Skip the cask push for snapshots and pre-releases automatically.
     skip_upload: auto
     completions:

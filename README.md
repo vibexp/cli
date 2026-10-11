@@ -552,3 +552,7 @@ Releases are automated with [goreleaser](https://goreleaser.com); see
 [docs/releasing.md](docs/releasing.md) for the release process, and
 [docs/architecture.md](docs/architecture.md) for the canonical package layout
 every command follows.
+
+## License
+
+[MIT](LICENSE).
