@@ -76,3 +76,34 @@ func TestSearchProjectScope(t *testing.T) {
 		t.Errorf("--project should scope search: %+v", cap.body)
 	}
 }
+
+func TestSearchSummaryThroughRoot(t *testing.T) {
+	var body map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/"+testTeamID+"/search/summary", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"summary":"Use backoff [1].","sources":[{"index":1,"id":"m-1","type":"memory","title":"Note","slug":""}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	cfg, cs := apiFixture(t, srv.URL, testTeamID)
+
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "text", "search", "retries", "--summary")
+	if code != 0 {
+		t.Fatalf("search --summary exit = %d", code)
+	}
+	if out != "Use backoff [1].\n\n[1] memory  Note  m-1\n" {
+		t.Errorf("stdout = %q", out)
+	}
+	if _, ok := body["per_page"]; ok {
+		t.Errorf("the summary body must carry no paging: %+v", body)
+	}
+
+	// Paging flags are a usage error through the real root, before any request.
+	body = nil
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "search", "retries", "--summary", "--limit", "5")
+	if code != 2 || !strings.Contains(errOut, "--limit") || body != nil {
+		t.Errorf("--summary --limit: exit = %d, stderr = %q, body = %+v", code, errOut, body)
+	}
+}
