@@ -87,9 +87,9 @@ accepts. The shared builder binds those flags and merges them into the query;
 filters compose with each other and with pagination.
 
 ```go
-Filters: &resource.ListFilters{Stale: true, Labels: true},                              // prompts
-Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true},              // artifacts, blueprints
-Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true},  // memories
+Filters: &resource.ListFilters{Stale: true, Labels: true, Locked: true},                 // prompts
+Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true, Locked: true}, // artifacts, blueprints
+Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true},   // memories
 ```
 
 | Field | Flag | Query param | Since |
@@ -98,6 +98,7 @@ Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true, Labels: 
 | `Tags` | `--tags <tag>` (repeatable) | folded into `metadata.tags` — memories only | platform v0.9.0 |
 | `Stale` | `--stale` | `freshness=stale` | platform v0.11.0 |
 | `Labels` | `--labels <label>` (repeatable) | `labels=a,b` — a resource matches when it carries any of them | platform v0.13.0 |
+| `Locked` | `--locked` | `locked=true` — prompts, blueprints and artifacts only (memories are not lockable) | platform v0.15.0 |
 
 **Opt in only to what the endpoint takes.** `listPrompts` has no `metadata`
 param, so `promptcmd` sets only `Stale` and `Labels` — binding `--metadata` there would let
@@ -105,6 +106,17 @@ a user narrow a list and receive the unfiltered one, which reads like a real
 answer. The same reasoning is why `freshness` is a strict server-side enum
 (anything but `stale` is a 400) and why `--stale` is a bool rather than a
 `--freshness=<value>` string the user could get wrong.
+
+### Lockable nouns
+
+A noun the platform can lock (prompts, blueprints, artifacts — v0.15.0) wires
+the shared lock pieces from `internal/cli/resource/lock.go`: `LockColumn()` last
+in the list columns, `LockDetailColumns()` last in the detail columns,
+`Locked: true` in its `ListFilters`, and the two verbs
+`resource.NewLockCommand(noun, resolve, getenv, itemPath, itemSpec)` /
+`resource.NewUnlockCommand(…)` in `New`. A 423 `RESOURCE_WRITE_LOCKED` on any
+write is narrated by `api.Check` (`Error.Lock`), so update/delete verbs need
+nothing extra.
 
 Discovery for filter authors lives in `vibexp metadata keys|values --type
 <artifacts|blueprints|memories>` (`internal/cli/metadatacmd`).

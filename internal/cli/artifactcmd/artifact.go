@@ -27,6 +27,7 @@ var columns = []output.Column{
 	{Header: "PROJECT", Path: ".project_id"},
 	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
+	resource.LockColumn(),
 }
 
 // detailColumns drive the single-object views — get, and the create/update/
@@ -38,9 +39,9 @@ var detailColumns = resource.WithFreshnessDetail(
 		{Header: "TITLE", Path: ".title"},
 		{Header: "PROJECT", Path: ".project_id"},
 	},
-	[]output.Column{
+	append([]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
-	},
+	}, resource.LockDetailColumns()...),
 )
 
 // itemSpec renders a single artifact object.
@@ -50,7 +51,7 @@ var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "artifact",
-		Short: "Manage artifacts (create, read, update, delete)",
+		Short: "Manage artifacts (create, read, update, delete, lock)",
 	}
 	cmd.AddCommand(
 		newList(resolve, getenv),
@@ -58,6 +59,8 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 		newCreate(resolve, getenv),
 		newUpdate(resolve, getenv),
 		newDelete(resolve, getenv),
+		resource.NewLockCommand("artifact", resolve, getenv, itemPath, itemSpec),
+		resource.NewUnlockCommand("artifact", resolve, getenv, itemPath, itemSpec),
 	)
 	return cmd
 }
@@ -118,6 +121,6 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			return resource.WithProjectFilter(path, rt)
 		},
 		Spec:    output.TableSpec{Rows: resource.ListRows("artifacts"), Columns: columns},
-		Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true},
+		Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true, Locked: true},
 	})
 }

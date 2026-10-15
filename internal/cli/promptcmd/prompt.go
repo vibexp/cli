@@ -30,6 +30,7 @@ var columns = []output.Column{
 	{Header: "STATUS", Path: ".status"},
 	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
+	resource.LockColumn(),
 }
 
 // detailColumns drive the single-object views — get, and the create/update/
@@ -41,9 +42,9 @@ var detailColumns = resource.WithFreshnessDetail(
 		{Header: "NAME", Path: ".name"},
 		{Header: "STATUS", Path: ".status"},
 	},
-	[]output.Column{
+	append([]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
-	},
+	}, resource.LockDetailColumns()...),
 )
 
 // itemSpec renders a single prompt object.
@@ -62,7 +63,7 @@ var listSpec = output.TableSpec{
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prompt",
-		Short: "Manage prompts (create, read, update, delete, render)",
+		Short: "Manage prompts (create, read, update, delete, render, lock)",
 	}
 	cmd.AddCommand(
 		newList(resolve, getenv),
@@ -70,6 +71,8 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 		newCreate(resolve, getenv),
 		newUpdate(resolve, getenv),
 		newDelete(resolve, getenv),
+		resource.NewLockCommand("prompt", resolve, getenv, itemPath, itemSpec),
+		resource.NewUnlockCommand("prompt", resolve, getenv, itemPath, itemSpec),
 		newRender(resolve, getenv),
 	)
 	return cmd
@@ -128,6 +131,6 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 		Spec: listSpec,
 		// Stale + Labels only: listPrompts takes freshness and labels but has no
 		// metadata param, so binding --metadata here would silently return the unfiltered list.
-		Filters: &resource.ListFilters{Stale: true, Labels: true},
+		Filters: &resource.ListFilters{Stale: true, Labels: true, Locked: true},
 	})
 }

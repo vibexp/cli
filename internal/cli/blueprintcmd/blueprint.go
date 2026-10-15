@@ -27,6 +27,7 @@ var columns = []output.Column{
 	{Header: "TYPE", Path: ".type"},
 	resource.FreshnessColumn(),
 	{Header: "UPDATED", Path: ".updated_at"},
+	resource.LockColumn(),
 }
 
 // detailColumns drive the single-object views — get, and the create/update/
@@ -43,9 +44,9 @@ var detailColumns = resource.WithFreshnessDetail(
 		{Header: "SOURCE_REPO", Path: ".source.repo"},
 		{Header: "SOURCE_COMMIT", Path: ".source.commit_sha[0:12]"},
 	},
-	[]output.Column{
+	append([]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
-	},
+	}, resource.LockDetailColumns()...),
 )
 
 // itemSpec renders a single blueprint object.
@@ -55,7 +56,7 @@ var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
 func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "blueprint",
-		Short: "Manage blueprints (create, read, update, delete)",
+		Short: "Manage blueprints (create, read, update, delete, lock)",
 	}
 	cmd.AddCommand(
 		newList(resolve, getenv),
@@ -63,6 +64,8 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 		newCreate(resolve, getenv),
 		newUpdate(resolve, getenv),
 		newDelete(resolve, getenv),
+		resource.NewLockCommand("blueprint", resolve, getenv, itemPath, itemSpec),
+		resource.NewUnlockCommand("blueprint", resolve, getenv, itemPath, itemSpec),
 	)
 	return cmd
 }
@@ -123,6 +126,6 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 			return resource.WithProjectFilter(path, rt)
 		},
 		Spec:    output.TableSpec{Rows: resource.ListRows("blueprints"), Columns: columns},
-		Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true},
+		Filters: &resource.ListFilters{Metadata: true, Stale: true, Labels: true, Locked: true},
 	})
 }
