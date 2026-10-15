@@ -186,7 +186,8 @@ vibexp team audit --team acme          # cross-team settings copies recorded for
 ```
 
 All of them honor `--format=json|yaml|table|text`, `--jq`, piped TSV, and the
-pagination flags `--limit` / `--page` / `--offset`. Adding a new resource
+pagination flags `--limit` / `--page` / `--offset` (`team list` has no
+`--offset`: its endpoint takes only a page and a page size). Adding a new resource
 command is mechanical — see [docs/adding-commands.md](docs/adding-commands.md).
 
 ### Pagination
@@ -433,7 +434,7 @@ bounded regardless of file size. Attachments are owned by a resource, so
 ```bash
 vibexp attachment upload ./build.log --owner-id <artifact-id>   # content type detected
 vibexp attachment upload ./data --owner-id <id> --content-type application/json
-vibexp attachment list --owner-id <artifact-id>                 # +pagination flags
+vibexp attachment list --owner-id <artifact-id>                 # every attachment, one response
 vibexp attachment delete <attachment-id>                        # --yes for scripts
 ```
 

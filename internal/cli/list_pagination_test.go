@@ -229,8 +229,9 @@ func TestSearchWarnsOnStderrWhenMorePagesExist(t *testing.T) {
 }
 
 // The attachments endpoint takes only owner_type/owner_id and returns every item
-// with no page metadata, so `attachment list` binds no pagination flags. A raw `api --paginate` walk of it must still stop after
-// one request instead of looping forever.
+// with no page metadata, so `attachment list` binds no pagination flags. A raw
+// `api --paginate` walk of it must still stop after one request instead of
+// looping forever.
 func TestAttachmentListIsUnpaginated(t *testing.T) {
 	hits := 0
 	mux := http.NewServeMux()

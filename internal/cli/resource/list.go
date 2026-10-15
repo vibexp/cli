@@ -124,10 +124,9 @@ func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg
 	if err != nil {
 		return UsageOnBadRequest(err)
 	}
-	if p == nil {
-		return Render(cmd, rt, getenv, body, &cfg.Spec)
+	if p != nil {
+		WarnIfPartial(cmd.ErrOrStderr(), body, "--page, --limit (max "+ServerMaxLimit+") or --all")
 	}
-	WarnIfPartial(cmd.ErrOrStderr(), body, "--page, --limit (max "+ServerMaxLimit+") or --all")
 	return Render(cmd, rt, getenv, body, &cfg.Spec)
 }
 
