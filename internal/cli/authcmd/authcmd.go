@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/cobra"
 	vibexp "github.com/vibexp/api-client-go"
 
+	"github.com/vibexp/cli/internal/api"
 	"github.com/vibexp/cli/internal/clictx"
 	"github.com/vibexp/cli/internal/config"
 	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
 	"github.com/vibexp/cli/internal/logging"
-	"github.com/vibexp/cli/internal/version"
 )
 
 // StoreResolver returns the effective credential store.
@@ -76,7 +76,7 @@ func fetchIdentity(ctx context.Context, baseURL, bearer string, timeout time.Dur
 		vibexp.WithHTTPClient(&http.Client{Timeout: timeout}),
 		vibexp.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
 			req.Header.Set("Authorization", "Bearer "+bearer)
-			req.Header.Set("User-Agent", "vibexp-cli/"+version.Version)
+			req.Header.Set("User-Agent", api.UserAgent())
 			return nil
 		}),
 	)

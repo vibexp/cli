@@ -23,9 +23,12 @@ const (
 	maxBackoff     = 5 * time.Second
 )
 
-// userAgent identifies the CLI on every request.
-func userAgent() string {
-	return "vibexp-cli/" + version.Version
+// UserAgent identifies the CLI on every platform request. The platform matches
+// the "VibeXP-CLI/" prefix case-sensitively to attribute API-key reads and
+// writes to the cli channel instead of api
+// (backend/internal/services/resourceaccess/source.go).
+func UserAgent() string {
+	return "VibeXP-CLI/" + version.Version
 }
 
 // Doer implements the generated HttpRequestDoer interface, adding a request
@@ -57,7 +60,7 @@ func NewDoer(timeout time.Duration) *Doer {
 // Retry-After.
 func (d *Doer) Do(req *http.Request) (*http.Response, error) {
 	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", userAgent())
+		req.Header.Set("User-Agent", UserAgent())
 	}
 	retryable := isRetryableMethod(req.Method)
 

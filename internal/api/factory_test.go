@@ -43,8 +43,8 @@ func TestFactoryWiresAuthAndUserAgent(t *testing.T) {
 	if gotAuth != "Bearer vxk_test_key_abcdef" {
 		t.Errorf("Authorization = %q", gotAuth)
 	}
-	if !strings.HasPrefix(gotUA, "vibexp-cli/") {
-		t.Errorf("User-Agent = %q", gotUA)
+	if !strings.HasPrefix(gotUA, "VibeXP-CLI/") {
+		t.Errorf("User-Agent = %q, want VibeXP-CLI/ prefix", gotUA)
 	}
 }
 
