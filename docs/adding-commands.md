@@ -61,6 +61,15 @@ under `--format=json`; the `TableSpec` only drives table/TSV.
    the verb (`team audit` alongside `team list`). `NewListCommand` is that call
    with `"list"`.
 
+   **Check what the endpoint actually paginates with** before binding the
+   flags — it is not uniform. When it reads its page size from a param other
+   than `limit`, set `ListConfig.PageSizeParam` (`team list`: `page_size`, which
+   `--limit` and the `--all` walk then send); when it takes no offset, set
+   `ListConfig.NoOffset` so `--offset` is not bound. An endpoint that does not
+   paginate at all (`attachment list`) binds no pagination flags and passes a
+   `nil` `*Pagination` to `RunList`: a flag that is accepted and ignored is
+   worse than a missing one.
+
 3. **Register it** in `internal/cli/root.go`:
    `root.AddCommand(thingcmd.New(resource.CredResolver(credResolver), getenv))`.
 4. **Test it** — an `httptest` server returning a **fabricated** response shape,

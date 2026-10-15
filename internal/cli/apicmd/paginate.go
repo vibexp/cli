@@ -24,7 +24,7 @@ func runPaginate(ctx context.Context, cmd *cobra.Command, client *api.RawClient,
 	if method != http.MethodGet {
 		return exitcode.Usage("--paginate only supports GET requests")
 	}
-	items, notList, err := resource.FetchAllPages(ctx, client, path, hdr)
+	items, notList, err := resource.FetchAllPages(ctx, client, path, resource.DefaultPageSizeParam, hdr)
 	if err != nil {
 		return err
 	}

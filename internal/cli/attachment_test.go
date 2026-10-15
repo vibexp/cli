@@ -140,12 +140,13 @@ func TestAttachmentList(t *testing.T) {
 	if _, _, code := runAuth(t, cfg, cs, nil, "", "attachment", "list"); code != exitcode.UsageErr {
 		t.Errorf("list without --owner-id exit = %d, want 2", code)
 	}
-	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "attachment", "list", "--owner-id", "own-9", "--limit", "3")
+	out, _, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "attachment", "list", "--owner-id", "own-9")
 	if code != 0 {
 		t.Fatalf("list exit = %d", code)
 	}
-	if cap.listQuery.Get("owner_id") != "own-9" || cap.listQuery.Get("owner_type") != "artifact" || cap.listQuery.Get("limit") != "3" {
-		t.Errorf("list query wrong: %v", cap.listQuery)
+	// listAttachments takes no page params: only the owner is sent.
+	if want := (url.Values{"owner_type": {"artifact"}, "owner_id": {"own-9"}}); cap.listQuery.Encode() != want.Encode() {
+		t.Errorf("list query = %v, want only %v", cap.listQuery, want)
 	}
 	if !strings.Contains(out, `"id":"att-1"`) {
 		t.Errorf("list json missing attachment: %q", out)

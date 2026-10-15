@@ -30,10 +30,18 @@ const ServerMaxLimit = "100"
 // AddPaginationFlags binds --limit/--page/--offset/--all to a Pagination and
 // returns it. A zero value means "unset" (the flag is omitted from the request).
 func AddPaginationFlags(cmd *cobra.Command) *Pagination {
+	return addPaginationFlags(cmd, true)
+}
+
+// addPaginationFlags is AddPaginationFlags with --offset optional, for an
+// endpoint that takes no offset (see ListConfig.NoOffset).
+func addPaginationFlags(cmd *cobra.Command, offset bool) *Pagination {
 	p := &Pagination{}
 	cmd.Flags().IntVar(&p.Limit, "limit", 0, LimitHelp)
 	cmd.Flags().IntVar(&p.Page, "page", 0, "page number (1-based)")
-	cmd.Flags().IntVar(&p.Offset, "offset", 0, "number of items to skip")
+	if offset {
+		cmd.Flags().IntVar(&p.Offset, "offset", 0, "number of items to skip")
+	}
 	cmd.Flags().BoolVar(&p.All, "all", false, "fetch every page and output the merged items")
 	return p
 }
@@ -50,15 +58,17 @@ func (p *Pagination) Validate() error {
 	return nil
 }
 
-// ApplyToPath merges the set pagination params into a path's query string.
-func (p *Pagination) ApplyToPath(path string) (string, error) {
+// ApplyToPath merges the set pagination params into a path's query string,
+// sending --limit as sizeParam (the endpoint's page-size param, e.g. "limit"
+// or listTeams' "page_size").
+func (p *Pagination) ApplyToPath(path, sizeParam string) (string, error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return "", exitcode.Usage("invalid path %q: %v", path, err)
 	}
 	q := u.Query()
 	if p.Limit > 0 {
-		q.Set("limit", strconv.Itoa(p.Limit))
+		q.Set(sizeParam, strconv.Itoa(p.Limit))
 	}
 	if p.Page > 0 {
 		q.Set("page", strconv.Itoa(p.Page))

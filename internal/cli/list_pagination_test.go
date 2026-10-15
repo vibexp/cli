@@ -228,15 +228,16 @@ func TestSearchWarnsOnStderrWhenMorePagesExist(t *testing.T) {
 	}
 }
 
-// The attachments endpoint ignores page/limit and returns every item with no
-// page metadata. --all must stop after one request instead of looping forever.
-func TestListAllStopsOnUnpaginatedEndpoint(t *testing.T) {
+// The attachments endpoint takes only owner_type/owner_id and returns every item
+// with no page metadata, so `attachment list` binds no pagination flags. A raw `api --paginate` walk of it must still stop after
+// one request instead of looping forever.
+func TestAttachmentListIsUnpaginated(t *testing.T) {
 	hits := 0
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/"+testTeamID+"/attachments", func(w http.ResponseWriter, _ *http.Request) {
 		hits++
 		if hits > 5 {
-			t.Error("--all kept walking an unpaginated endpoint")
+			t.Error("--paginate kept walking an unpaginated endpoint")
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -247,20 +248,20 @@ func TestListAllStopsOnUnpaginatedEndpoint(t *testing.T) {
 	defer srv.Close()
 	cfg, cs := apiFixture(t, srv.URL, testTeamID)
 
-	for _, limit := range []string{"1", "2"} {
-		hits = 0
-		out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json",
-			"attachment", "list", "--owner-id", "o-1", "--all", "--limit", limit)
-		if code != 0 {
-			t.Fatalf("--limit %s: exit = %d, stderr=%q", limit, code, errOut)
+	for _, flag := range []string{"--limit=5", "--page=2", "--offset=1", "--all"} {
+		if _, _, code := runAuth(t, cfg, cs, nil, "", "attachment", "list", "--owner-id", "o-1", flag); code != exitcode.UsageErr {
+			t.Errorf("%s: exit = %d, want 2 (unknown flag)", flag, code)
 		}
-		var items []map[string]any
-		if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != 2 {
-			t.Errorf("--limit %s: want the 2 items once, got %s", limit, out)
-		}
-		if hits != 1 {
-			t.Errorf("--limit %s: requests = %d, want 1", limit, hits)
-		}
+	}
+
+	out, errOut, code := runAuth(t, cfg, cs, nil, "", "api", "GET",
+		"/api/v1/"+testTeamID+"/attachments?owner_type=artifact&owner_id=o-1&limit=1", "--paginate")
+	if code != 0 {
+		t.Fatalf("--paginate: exit = %d, stderr=%q", code, errOut)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != 2 || hits != 1 {
+		t.Errorf("--paginate: want the 2 items from 1 request, got %d requests: %s", hits, out)
 	}
 }
 
@@ -286,15 +287,25 @@ func TestListAllFollowsServerPerPage(t *testing.T) {
 	}
 }
 
-// listTeams ignores limit, serves page_size (20) items, and reports no
-// total_pages — --all must still walk every page, and a single page must hint.
+// listTeams reads page_size (default 20) and ignores limit, and reports no
+// total_pages. --limit must be sent as page_size on every page --all walks,
+// --all must still reach every team, and a single page must hint.
 func TestTeamListAllFollowsPageSize(t *testing.T) {
-	const total, size = 25, 20
+	const total, defaultSize = 25, 20
+	var sizes []string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/teams", func(w http.ResponseWriter, r *http.Request) {
-		page := 1
-		if p := r.URL.Query().Get("page"); p != "" {
+		q := r.URL.Query()
+		if q.Has("limit") {
+			t.Errorf("team list sent limit: %v", q)
+		}
+		sizes = append(sizes, q.Get("page_size"))
+		page, size := 1, defaultSize
+		if p := q.Get("page"); p != "" {
 			page, _ = strconv.Atoi(p)
+		}
+		if n, err := strconv.Atoi(q.Get("page_size")); err == nil && n > 0 {
+			size = min(n, 100)
 		}
 		var teams []string
 		for i := (page - 1) * size; i < page*size && i < total; i++ {
@@ -307,16 +318,29 @@ func TestTeamListAllFollowsPageSize(t *testing.T) {
 	defer srv.Close()
 	cfg, cs := apiFixture(t, srv.URL, "")
 
-	out, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "team", "list", "--all")
-	if code != 0 {
-		t.Fatalf("exit = %d, stderr=%q", code, errOut)
-	}
-	var items []map[string]any
-	if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != total {
-		t.Errorf("want all %d teams, got %d (%v)", total, len(items), err)
+	for _, tt := range []struct {
+		args      []string
+		wantSizes string
+	}{
+		{[]string{"--all"}, "[50]"},
+		{[]string{"--all", "--limit", "100"}, "[100]"},
+		{[]string{"--all", "--limit", "10"}, "[10 10 10]"},
+	} {
+		sizes = nil
+		out, errOut, code := runAuth(t, cfg, cs, nil, "", append([]string{"--format", "json", "team", "list"}, tt.args...)...)
+		if code != 0 {
+			t.Fatalf("%v: exit = %d, stderr=%q", tt.args, code, errOut)
+		}
+		var items []map[string]any
+		if err := json.Unmarshal([]byte(out), &items); err != nil || len(items) != total {
+			t.Errorf("%v: want all %d teams, got %d (%v)", tt.args, total, len(items), err)
+		}
+		if fmt.Sprint(sizes) != tt.wantSizes {
+			t.Errorf("%v: page_size per request = %v, want %s", tt.args, sizes, tt.wantSizes)
+		}
 	}
 
-	_, errOut, code = runAuth(t, cfg, cs, nil, "", "--format", "json", "team", "list")
+	_, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "team", "list")
 	if code != 0 {
 		t.Fatalf("exit = %d, stderr=%q", code, errOut)
 	}

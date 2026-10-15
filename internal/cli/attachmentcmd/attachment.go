@@ -63,13 +63,14 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 		Long:  "List the attachments owned by a resource. --owner-id is required; --owner-type defaults to \"artifact\".",
 		Args:  cobra.NoArgs,
 	}
-	page := resource.AddPaginationFlags(cmd)
 	cmd.Flags().StringVar(&ownerID, "owner-id", "", "UUID of the owning resource (required)")
 	cmd.Flags().StringVar(&ownerType, "owner-type", defaultOwnerType, "type of the owning resource")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if ownerID == "" {
 			return exitcode.Usage("--owner-id <id> is required")
 		}
+		// listAttachments returns every attachment of the owner in one
+		// response and takes no page params, so no Pagination (nil).
 		return resource.RunList(cmd, resolve, getenv, resource.ListConfig{
 			PathFor: func(rt *config.Runtime) (string, error) {
 				base, err := basePath(rt)
@@ -82,7 +83,7 @@ func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command
 				return base + "?" + q.Encode(), nil
 			},
 			Spec: output.TableSpec{Rows: resource.ListRows("attachments"), Columns: columns},
-		}, page)
+		}, nil)
 	}
 	return cmd
 }
