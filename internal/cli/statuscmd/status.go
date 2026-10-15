@@ -207,7 +207,8 @@ func deleteStatus(cmd *cobra.Command, rt *config.Runtime, client *api.RawClient,
 	if err != nil {
 		return err
 	}
-	if cmd.Flags().Changed("format") || cmd.Flags().Changed("jq") {
+	// The resolved format, not the flag, so VIBEXP_FORMAT asks for data too.
+	if rt.Format != "" || rt.JQ != "" {
 		return resource.Render(cmd, rt, getenv, raw, nil)
 	}
 	var out struct {
@@ -217,7 +218,11 @@ func deleteStatus(cmd *cobra.Command, rt *config.Runtime, client *api.RawClient,
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return exitcode.New(exitcode.RuntimeErr, err)
 	}
-	cmd.PrintErrf("Deleted status %s; %d resources moved to %s.\n", slug, out.ReassignedCount, out.ReassignedTo)
+	noun := "resources"
+	if out.ReassignedCount == 1 {
+		noun = "resource"
+	}
+	cmd.PrintErrf("Deleted status %s; %d %s moved to %s.\n", slug, out.ReassignedCount, noun, out.ReassignedTo)
 	return nil
 }
 
@@ -232,7 +237,7 @@ func defaultStatus(typ string) string {
 	case "prompt":
 		return "draft"
 	case "":
-		return "the default status (draft for prompts, active otherwise)"
+		return "the default status: draft for prompts, active otherwise"
 	default:
 		return "active"
 	}

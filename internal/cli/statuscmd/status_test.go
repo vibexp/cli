@@ -301,6 +301,33 @@ func TestDeleteWithFormatRendersRawBody(t *testing.T) {
 	}
 }
 
+// A format from the runtime alone (VIBEXP_FORMAT), with no --format flag, also
+// asks for the raw body.
+func TestDeleteWithRuntimeFormatRendersRawBody(t *testing.T) {
+	srv := newServer(t)
+	out, errOut, code := run(t, srv, "json", "delete", statusID, "--yes")
+	if code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	if !strings.Contains(out, `"reassigned_count":2`) || strings.Contains(errOut, "Deleted status") {
+		t.Errorf("stdout = %q, stderr = %q", out, errOut)
+	}
+}
+
+func TestDeleteSummaryPluralizes(t *testing.T) {
+	srv := newServer(t)
+	srv.reply = func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"reassigned_count":1,"reassigned_to":"draft"}`))
+	}
+	_, errOut, code := run(t, srv, "", "delete", statusID, "--yes")
+	if code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	if !strings.Contains(errOut, "Deleted status "+statusID+"; 1 resource moved to draft.") {
+		t.Errorf("stderr = %q", errOut)
+	}
+}
+
 func TestDeleteRefusesNonInteractiveWithoutYes(t *testing.T) {
 	srv := newServer(t)
 	_, errOut, code := run(t, srv, "", "delete", "in-review", "--type", "prompt")
