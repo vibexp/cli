@@ -82,7 +82,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&typ, "type", "", "type category")
 	cmd.Flags().StringVar(&subtype, "subtype", "", "subtype category")
 	cmd.Flags().StringVar(&path, "path", "", "repo-relative path to freeze for this blueprint")
-	cmd.Flags().StringVar(&status, "status", "", "initial status")
+	cmd.Flags().StringVar(&status, "status", "", "initial status (see: vibexp status list --type blueprint)")
 	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd

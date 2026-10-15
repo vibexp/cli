@@ -73,7 +73,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&typ, "type", "", "new type category")
 	cmd.Flags().StringVar(&subtype, "subtype", "", "new subtype category")
 	cmd.Flags().StringVar(&path, "path", "", "new repo-relative path")
-	cmd.Flags().StringVar(&status, "status", "", "new status")
+	cmd.Flags().StringVar(&status, "status", "", "new status (see: vibexp status list --type blueprint)")
 	resource.AddLabelFlags(cmd, &labels, true)
 	resource.AddMetadataFlags(cmd, &meta, true)
 	return cmd

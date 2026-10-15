@@ -36,7 +36,9 @@ anything; go to the code for detail, not to issue bodies.
   verbs and a `list --locked` filter (v0.15.0, shared in `resource/lock.go`,
   423 narrated by `api.Check`); memory/artifact/blueprint `create`/`update` write labels via the shared
   `resource.LabelFlags` (`--label`, sent only when given), prompts keep their
-  own `--label`), relations (`vibexp relations` — note the
+  own `--label`), statuses (`vibexp status list|create|rename|delete` — the
+  v0.15.0 per-type team catalog the `--status` flags draw from; its `--type`
+  is singular, unlike `metadata`'s plural), relations (`vibexp relations` — note the
   plural, the only one),
   whoami/teams (`team list` plus `team audit`, the v0.12.0 cross-team settings-copy
   trail)/projects — plus `vibexp api <METHOD> <path>` raw passthrough for
@@ -84,7 +86,7 @@ internal/cli/             cobra commands: root.go + one package per noun
                           plus cross-noun column definitions — a read-time field
                           every resource carries is declared once here, e.g.
                           FreshnessColumn/WithFreshnessDetail, never per noun)
-  usercmd/ teamcmd/ projectcmd/ memorycmd/ metadatacmd/ blueprintcmd/ promptcmd/
+  usercmd/ teamcmd/ projectcmd/ memorycmd/ metadatacmd/ statuscmd/ blueprintcmd/ promptcmd/
   artifactcmd/ feedcmd/ searchcmd/ attachmentcmd/ relationcmd/ updatecmd/ versioncmd/
 internal/clictx/          carries the resolved runtime + logger on context.Context so
                           command packages never import the root cli package (cycle)
@@ -159,7 +161,7 @@ namespaced `cli-e2e-<run-id>` and always cleaned up.
   the `credentials.json` schema (`internal/cred`) carries both the API key and the
   OAuth token set in one entry per context (keyed by context name);
   `resource.ConfirmDeletion` is the single confirmation path for every resource
-  `delete` command — all six of them. (`auth logout` drops local credentials without
+  `delete` command — all seven of them. (`auth logout` drops local credentials without
   a prompt; it is not routed through this.)
 
 **Maintenance:** this file is hot-loaded into every agent session, so update it in the

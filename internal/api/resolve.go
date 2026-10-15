@@ -29,7 +29,7 @@ func Team(rt *config.Runtime) (string, error) {
 	if v == "" {
 		return "", exitcode.Usage("no team set: pass --team <id|slug>, set VIBEXP_TEAM, or set a default on the context (vibexp config set-context %s --team <id|slug>)", contextName(rt))
 	}
-	if isUUID(v) {
+	if IsUUID(v) {
 		return v, nil
 	}
 	if rt.Slugs == nil {
@@ -50,7 +50,7 @@ func Project(rt *config.Runtime) (string, error) {
 	if v == "" {
 		return "", exitcode.Usage("no project set: pass --project <id|slug>, set VIBEXP_PROJECT, or set a default on the context (vibexp config set-context %s --project <id|slug>)", contextName(rt))
 	}
-	if isUUID(v) {
+	if IsUUID(v) {
 		return v, nil
 	}
 	if rt.Slugs == nil {
@@ -83,9 +83,9 @@ func OptionalProject(rt *config.Runtime) (string, error) {
 // so this means a runtime was built elsewhere — a bug, not a user error.
 var errNoSlugResolver = exitcode.New(exitcode.RuntimeErr, errors.New("internal: no team/project slug resolver on the runtime"))
 
-// isUUID reports whether v is a canonical 36-character UUID (uuid.Validate
+// IsUUID reports whether v is a canonical 36-character UUID (uuid.Validate
 // alone also accepts the urn: and braced forms, which REST paths do not).
-func isUUID(v string) bool {
+func IsUUID(v string) bool {
 	return len(v) == 36 && uuid.Validate(v) == nil
 }
 

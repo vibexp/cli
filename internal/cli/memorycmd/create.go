@@ -64,7 +64,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with the memory content, or '-' for stdin")
 	cmd.Flags().StringVar(&title, "title", "", titleUsage)
-	cmd.Flags().StringVar(&status, "status", "", "initial status (e.g. active)")
+	cmd.Flags().StringVar(&status, "status", "", "initial status (see: vibexp status list --type memory)")
 	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd
