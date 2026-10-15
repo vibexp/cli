@@ -398,10 +398,14 @@ into a shell pipeline or an AI-tool hook:
 ```bash
 vibexp prompt render greet --var env=prod --var region=eu | your-tool
 vibexp prompt render greet --var env=prod --format json      # full API envelope
+vibexp prompt render greet --strict --var env=prod           # fail on unresolved @prompt:slug
 ```
 
 A missing required variable surfaces the API's validation error with field
-detail (exit 1); on a duplicate `--var` key the last value wins.
+detail (exit 1); on a duplicate `--var` key the last value wins. `--strict`
+(platform v0.15.0+) resolves only explicit `@prompt:slug` references, leaves a
+bare `@word` literal, and fails with exit 1 — the error names the unresolved
+slugs — instead of passing an unresolved reference through as text.
 
 ### Artifacts
 

@@ -21,7 +21,10 @@ var renderSpec = output.TableSpec{
 }
 
 func newRender(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
-	var vars []string
+	var (
+		vars   []string
+		strict bool
+	)
 	cmd := &cobra.Command{
 		Use:   "render <slug>",
 		Short: "Render a prompt template with variables",
@@ -30,7 +33,13 @@ func newRender(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 			"decoration); pass --format=json|yaml to get the full API response\n" +
 			"(rendered_body, placeholders_missing, warnings). A missing required\n" +
 			"variable surfaces the API's validation error (exit 1). On a duplicate\n" +
-			"--var key the last value wins.",
+			"--var key the last value wins.\n\n" +
+			"--strict (platform v0.15.0+) resolves only explicit @prompt:slug\n" +
+			"references; a bare @word (an email, a handle, git@host) stays literal,\n" +
+			"and an unresolved reference fails the render (exit 1) with the API\n" +
+			"error naming the slugs, instead of passing it through as text. Use it\n" +
+			"from scripts and agents, where an unexpanded reference would yield a\n" +
+			"prompt that looks fine and is wrong. Older platforms ignore it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			placeholders, err := parseVars(vars)
@@ -46,7 +55,11 @@ func newRender(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 				return err
 			}
 
-			payload, err := json.Marshal(map[string]any{"placeholders": placeholders})
+			body := map[string]any{"placeholders": placeholders}
+			if strict {
+				body["strict"] = true
+			}
+			payload, err := json.Marshal(body)
 			if err != nil {
 				return exitcode.New(exitcode.RuntimeErr, err)
 			}
@@ -72,6 +85,7 @@ func newRender(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 		},
 	}
 	cmd.Flags().StringArrayVar(&vars, "var", nil, "template variable as key=value (repeatable)")
+	cmd.Flags().BoolVar(&strict, "strict", false, "fail (exit 1) on an unresolved @prompt:slug reference; bare @word stays literal")
 	return cmd
 }
 

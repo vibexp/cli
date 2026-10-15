@@ -232,6 +232,9 @@ func TestPromptRenderRaw(t *testing.T) {
 	if ph["env"] != "prod" || ph["region"] != "eu" {
 		t.Errorf("placeholders not sent: %+v", cap.renderBody["placeholders"])
 	}
+	if _, ok := cap.renderBody["strict"]; ok {
+		t.Errorf("strict must be omitted without --strict: %+v", cap.renderBody)
+	}
 }
 
 // TestPromptRenderDuplicateVarLastWins documents the last-wins rule for a
