@@ -89,20 +89,22 @@ func slugServer(t *testing.T, requests *int) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// slugRuntime returns a runtime with the slug resolver installed by NewRaw.
+// fakeKeyEnv supplies a fabricated API key.
+func fakeKeyEnv(k string) string {
+	if k == "VIBEXP_API_KEY" {
+		return "vxk_fabricated"
+	}
+	return ""
+}
+
+// slugRuntime returns a runtime with the slug resolver installed, as the root
+// installs it. No client is built up front.
 func slugRuntime(t *testing.T, srv *httptest.Server, team, project string) *config.Runtime {
 	t.Helper()
 	rt := &config.Runtime{BaseURL: srv.URL, Team: team, Project: project}
 	store := &cred.Store{Path: filepath.Join(t.TempDir(), "credentials.json")}
-	getenv := func(k string) string {
-		if k == "VIBEXP_API_KEY" {
-			return "vxk_fabricated"
-		}
-		return ""
-	}
-	if _, err := NewRaw(context.Background(), rt, store, getenv); err != nil {
-		t.Fatal(err)
-	}
+	creds := func() (*cred.Store, error) { return store, nil }
+	rt.Slugs = NewSlugResolver(context.Background(), rt, creds, fakeKeyEnv)
 	return rt
 }
 
@@ -252,5 +254,86 @@ func TestTeamLookupFailuresAreErrors(t *testing.T) {
 	gone.Close() // the lookup request itself fails
 	if _, err := Team(rt); err == nil {
 		t.Error("an unreachable server should fail the lookup")
+	}
+}
+
+func TestNewRawLeavesRuntimeUntouched(t *testing.T) {
+	rt := &config.Runtime{BaseURL: "http://127.0.0.1:1", Team: "acme"}
+	store := &cred.Store{Path: filepath.Join(t.TempDir(), "credentials.json")}
+	if _, err := NewRaw(context.Background(), rt, store, fakeKeyEnv); err != nil {
+		t.Fatal(err)
+	}
+	if rt.Slugs != nil {
+		t.Error("NewRaw must not install a slug resolver on the runtime")
+	}
+}
+
+// countingCreds returns a credential func that counts its calls.
+func countingCreds(t *testing.T, calls *int) func() (*cred.Store, error) {
+	t.Helper()
+	store := &cred.Store{Path: filepath.Join(t.TempDir(), "credentials.json")}
+	return func() (*cred.Store, error) {
+		*calls++
+		return store, nil
+	}
+}
+
+func TestSlugResolverBuildsItsClientOnceAndLazily(t *testing.T) {
+	var requests, credCalls int
+	srv := slugServer(t, &requests)
+	defer srv.Close()
+	rt := &config.Runtime{BaseURL: srv.URL, Team: "acme", Project: "web-app"}
+	rt.Slugs = NewSlugResolver(context.Background(), rt, countingCreds(t, &credCalls), fakeKeyEnv)
+	if credCalls != 0 {
+		t.Fatalf("installing the resolver opened the credential store %d times, want 0", credCalls)
+	}
+
+	// Path before client: no RawClient exists, yet both slugs resolve.
+	if got, err := Project(rt); err != nil || got != slugProjectID {
+		t.Fatalf("Project = %q, %v", got, err)
+	}
+	if rt.Team != slugTeamID {
+		t.Errorf("rt.Team = %q, want the resolved UUID", rt.Team)
+	}
+	if credCalls != 1 {
+		t.Errorf("credential store opened %d times across a team and a project lookup, want 1", credCalls)
+	}
+}
+
+func TestSlugResolverUnusedForUUIDs(t *testing.T) {
+	var credCalls int
+	rt := &config.Runtime{Team: slugTeamID, Project: slugProjectID} // no base URL either
+	rt.Slugs = NewSlugResolver(context.Background(), rt, countingCreds(t, &credCalls), fakeKeyEnv)
+	if _, err := Project(rt); err != nil {
+		t.Fatal(err)
+	}
+	if credCalls != 0 {
+		t.Errorf("a UUID opened the credential store %d times, want 0", credCalls)
+	}
+}
+
+func TestSlugResolverClientErrorsPropagate(t *testing.T) {
+	var credCalls int
+	rt := &config.Runtime{Team: "acme"} // no base URL
+	rt.Slugs = NewSlugResolver(context.Background(), rt, countingCreds(t, &credCalls), fakeKeyEnv)
+	for i := 0; i < 2; i++ {
+		_, err := Team(rt)
+		if got := exitcode.FromError(err); got != exitcode.UsageErr {
+			t.Fatalf("missing base URL (call %d): exit = %d, want 2 (err %v)", i+1, got, err)
+		}
+		if !strings.Contains(err.Error(), "base URL") {
+			t.Errorf("error should name the missing base URL: %v", err)
+		}
+	}
+	if credCalls != 1 {
+		t.Errorf("a failed client build was retried: %d credential opens, want 1", credCalls)
+	}
+
+	rt = &config.Runtime{BaseURL: "http://127.0.0.1:1", Team: "acme"}
+	rt.Slugs = NewSlugResolver(context.Background(), rt, func() (*cred.Store, error) {
+		return nil, errors.New("credentials unreadable")
+	}, fakeKeyEnv)
+	if _, err := Team(rt); exitcode.FromError(err) != exitcode.RuntimeErr || !strings.Contains(err.Error(), "credentials unreadable") {
+		t.Errorf("a credential store error should surface as exit 1, got %v", err)
 	}
 }

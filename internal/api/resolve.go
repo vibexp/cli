@@ -8,20 +8,22 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
 	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
 )
 
 // Team returns the resolved team id for a team-scoped command. The precedence
 // (--team > VIBEXP_TEAM > active-context default) is already applied in
 // config.Resolve. REST paths take only a UUID, so a slug is looked up through
-// the runtime's SlugResolver (installed by NewRaw, which must therefore run
-// first) and the UUID is written back
-// to rt, so later calls in the same invocation make no request. A missing team
-// is a usage error (exit 2) naming all three ways to set it.
+// the runtime's SlugResolver (installed by the root when it builds the runtime,
+// see NewSlugResolver) and the UUID is written back to rt, so later calls in
+// the same invocation make no request. A missing team is a usage error (exit 2)
+// naming all three ways to set it.
 func Team(rt *config.Runtime) (string, error) {
 	v := strings.TrimSpace(rt.Team)
 	if v == "" {
@@ -75,11 +77,11 @@ func OptionalProject(rt *config.Runtime) (string, error) {
 	return Project(rt)
 }
 
-// errNoSlugResolver fails closed when a slug is resolved before NewRaw
-// installed the resolver: sending the slug on would hit the server's
-// "must be a valid UUID" error instead. It means a command built its path
-// before its client — a bug, not a user error.
-var errNoSlugResolver = exitcode.New(exitcode.RuntimeErr, errors.New("internal: team/project slug resolved before the API client was built"))
+// errNoSlugResolver fails closed when a slug is resolved on a runtime that
+// carries no resolver: sending the slug on would hit the server's "must be a
+// valid UUID" error instead. The root installs one on every runtime it builds,
+// so this means a runtime was built elsewhere — a bug, not a user error.
+var errNoSlugResolver = exitcode.New(exitcode.RuntimeErr, errors.New("internal: no team/project slug resolver on the runtime"))
 
 // isUUID reports whether v is a canonical 36-character UUID (uuid.Validate
 // alone also accepts the urn: and braced forms, which REST paths do not).
@@ -97,16 +99,45 @@ func contextName(rt *config.Runtime) string {
 // teamPageSize is listTeams' maximum page_size.
 const teamPageSize = 100
 
-// slugLookup is the SlugResolver NewRaw installs: it resolves slugs over the
-// same authenticated client the command itself uses.
+// NewSlugResolver returns the SlugResolver the root installs on the runtime it
+// builds. It is lazy: the credential store is opened and a RawClient built only
+// on the first lookup (then reused), so a command that never resolves a slug —
+// or never needs credentials at all — pays nothing. rt is read at that first
+// lookup, for its base URL, timeout and context. ctx is the root's command
+// context, the parent of every command's own.
+func NewSlugResolver(ctx context.Context, rt *config.Runtime, creds func() (*cred.Store, error), getenv func(string) string) config.SlugResolver {
+	return &slugLookup{ctx: ctx, rt: rt, creds: creds, getenv: getenv}
+}
+
+// slugLookup is the SlugResolver NewSlugResolver returns.
 type slugLookup struct {
 	ctx    context.Context
-	client *RawClient
+	rt     *config.Runtime
+	creds  func() (*cred.Store, error)
+	getenv func(string) string
+
+	once sync.Once
+	raw  *RawClient
+	err  error
+}
+
+// client builds the lookup's RawClient on first use and returns the same
+// client (or error) thereafter.
+func (l *slugLookup) client() (*RawClient, error) {
+	l.once.Do(func() {
+		store, err := l.creds()
+		if err != nil {
+			l.err = exitcode.New(exitcode.RuntimeErr, err)
+			return
+		}
+		l.raw, l.err = NewRaw(l.ctx, l.rt, store, l.getenv)
+	})
+	return l.raw, l.err
 }
 
 // TeamID pages through the caller's teams (GET /api/v1/teams) for one whose
 // slug matches.
-func (l slugLookup) TeamID(slug string) (string, error) {
+func (l *slugLookup) TeamID(slug string) (string, error) {
 	for page := 1; ; page++ {
 		var body struct {
 			Teams []struct {
@@ -132,7 +163,7 @@ func (l slugLookup) TeamID(slug string) (string, error) {
 
 // ProjectID fetches the project by slug within the team
 // (GET /api/v1/{team}/projects/{slug}).
-func (l slugLookup) ProjectID(teamID, slug string) (string, error) {
+func (l *slugLookup) ProjectID(teamID, slug string) (string, error) {
 	var body struct {
 		ID string `json:"id"`
 	}
@@ -152,8 +183,12 @@ func (l slugLookup) ProjectID(teamID, slug string) (string, error) {
 // getJSON GETs path, maps a non-2xx through Check, and decodes the body into
 // out. The status is returned alongside any error so callers can special-case
 // it.
-func (l slugLookup) getJSON(path string, out any) (int, error) {
-	resp, err := l.client.Do(l.ctx, http.MethodGet, path, nil, nil)
+func (l *slugLookup) getJSON(path string, out any) (int, error) {
+	client, err := l.client()
+	if err != nil {
+		return 0, err
+	}
+	resp, err := client.Do(l.ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return 0, err
 	}

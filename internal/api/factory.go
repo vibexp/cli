@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	vibexp "github.com/vibexp/api-client-go"
 
@@ -72,7 +73,7 @@ func authEditor(ctx context.Context, rt *config.Runtime, credStore *cred.Store, 
 // stored client_id).
 func oauthRefresher(ctx context.Context, rt *config.Runtime, credStore *cred.Store) (*oauth.Refresher, error) {
 	hc := &http.Client{Timeout: rt.Timeout}
-	meta, err := oauth.Discover(ctx, hc, rt.BaseURL)
+	d, err := discover(ctx, hc, rt.BaseURL)
 	if err != nil {
 		return nil, exitcode.New(exitcode.RuntimeErr, err)
 	}
@@ -88,8 +89,52 @@ func oauthRefresher(ctx context.Context, rt *config.Runtime, credStore *cred.Sto
 		HTTPClient:    hc,
 		Store:         credStore,
 		ContextName:   rt.ContextName,
-		TokenEndpoint: meta.TokenEndpoint,
+		TokenEndpoint: d.tokenEndpoint,
 		ClientID:      clientID,
-		Resource:      oauth.DiscoverResource(ctx, hc, rt.BaseURL),
+		Resource:      d.resource,
 	}, nil
+}
+
+// discovered is the OAuth discovery a refresher needs for one base URL.
+type discovered struct {
+	tokenEndpoint string
+	resource      string
+}
+
+// discoveryCacheKey keys the per-invocation discovery cache on a context.
+type discoveryCacheKey struct{}
+
+// discoveryCache memoizes successful discovery by base URL.
+type discoveryCache struct {
+	mu      sync.Mutex
+	entries map[string]discovered
+}
+
+// WithDiscoveryCache returns a copy of ctx carrying an OAuth discovery cache,
+// so every client built under it — the command's own and the slug resolver's
+// — discovers a base URL once. The root installs it for each invocation.
+func WithDiscoveryCache(ctx context.Context) context.Context {
+	return context.WithValue(ctx, discoveryCacheKey{}, &discoveryCache{entries: map[string]discovered{}})
+}
+
+// discover runs RFC 8414 + RFC 9728 discovery for baseURL, through the
+// context's cache when there is one. A failure is never cached.
+func discover(ctx context.Context, hc *http.Client, baseURL string) (discovered, error) {
+	cache, _ := ctx.Value(discoveryCacheKey{}).(*discoveryCache)
+	if cache != nil {
+		cache.mu.Lock()
+		defer cache.mu.Unlock()
+		if d, ok := cache.entries[baseURL]; ok {
+			return d, nil
+		}
+	}
+	meta, err := oauth.Discover(ctx, hc, baseURL)
+	if err != nil {
+		return discovered{}, err
+	}
+	d := discovered{tokenEndpoint: meta.TokenEndpoint, resource: oauth.DiscoverResource(ctx, hc, baseURL)}
+	if cache != nil {
+		cache.entries[baseURL] = d
+	}
+	return d, nil
 }

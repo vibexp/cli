@@ -77,7 +77,6 @@ func New(resolve CredResolver, getenv config.Getenv) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// After NewRaw, so a {team} slug resolves to the UUID paths take.
 			resolvedPath, err := substituteTeam(path, rt)
 			if err != nil {
 				return err

@@ -25,9 +25,7 @@ type RawClient struct {
 // importing it here.
 type requestEditor func(ctx context.Context, req *http.Request) error
 
-// NewRaw builds a RawClient for the resolved runtime, and installs on rt the
-// SlugResolver that lets api.Team/api.Project turn a slug into its UUID over
-// this client.
+// NewRaw builds a RawClient for the resolved runtime. It does not touch rt.
 func NewRaw(ctx context.Context, rt *config.Runtime, credStore *cred.Store, getenv func(string) string) (*RawClient, error) {
 	if rt.BaseURL == "" {
 		return nil, exitcode.Usage("no base URL for the active context; set one with: vibexp config set-context %s --base-url <url>", contextName(rt))
@@ -36,13 +34,11 @@ func NewRaw(ctx context.Context, rt *config.Runtime, credStore *cred.Store, gete
 	if err != nil {
 		return nil, err
 	}
-	client := &RawClient{
+	return &RawClient{
 		baseURL: strings.TrimRight(rt.BaseURL, "/"),
 		doer:    NewDoer(rt.Timeout),
 		editor:  requestEditor(editor),
-	}
-	rt.Slugs = slugLookup{ctx: ctx, client: client}
-	return client, nil
+	}, nil
 }
 
 // BaseURL returns the client's base URL.
