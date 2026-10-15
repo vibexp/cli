@@ -3,9 +3,13 @@ package cli
 import (
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
 )
 
@@ -133,7 +137,12 @@ func TestUnscopedCommandSkipsTeamLookup(t *testing.T) {
 // carries a slug 404s.
 func guardServer(t *testing.T, paths *[]string) *httptest.Server {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return httptest.NewServer(guardHandler(paths))
+}
+
+// guardHandler is guardServer's handler.
+func guardHandler(paths *[]string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		*paths = append(*paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -148,7 +157,7 @@ func guardServer(t *testing.T, paths *[]string) *httptest.Server {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"title":"Not Found","status":404,"detail":"not found"}`))
 		}
-	}))
+	}
 }
 
 // TestTeamScopedCommandsResolveSlugs guards every team-scoped command against
@@ -194,5 +203,41 @@ func TestTeamScopedCommandsResolveSlugs(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestOAuthSlugLookupDiscoversOnce(t *testing.T) {
+	var paths []string
+	wellKnown := map[string]int{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
+		wellKnown[r.URL.Path]++
+		base := "http://" + r.Host
+		_, _ = w.Write([]byte(`{"issuer":"` + base + `","authorization_endpoint":"` + base + `/authorize","token_endpoint":"` + base + `/token"}`))
+	})
+	mux.HandleFunc("/.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
+		wellKnown[r.URL.Path]++
+		w.WriteHeader(http.StatusNotFound)
+	})
+	mux.Handle("/", guardHandler(&paths))
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	dir := t.TempDir()
+	cfg := &config.Store{Path: filepath.Join(dir, "config.yaml")}
+	_ = cfg.Save(&config.File{CurrentContext: "dev", Contexts: []config.Context{{Name: "dev", BaseURL: srv.URL}}})
+	cs := &cred.Store{Path: filepath.Join(dir, "credentials.json")}
+	_ = cs.Save("dev", cred.Entry{
+		Type: cred.TypeOAuth, ClientID: "client-1", AccessToken: "valid-access",
+		RefreshToken: "refresh", ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	if _, errOut, code := runAuth(t, cfg, cs, nil, "", "--format", "json", "--team", "acme", "prompt", "get", "greet"); code != 0 {
+		t.Fatalf("exit = %d, stderr=%q, requests=%v", code, errOut, paths)
+	}
+	for _, p := range []string{"/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource"} {
+		if wellKnown[p] != 1 {
+			t.Errorf("%s fetched %d times, want once for the lookup's client and the command's", p, wellKnown[p])
+		}
 	}
 }

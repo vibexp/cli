@@ -92,3 +92,43 @@ func TestFactoryNoBaseURLIsUsageError(t *testing.T) {
 		t.Errorf("no-base-URL New exit = %d, want 2", got)
 	}
 }
+
+func TestDiscoveryCacheDiscoversOncePerBaseURL(t *testing.T) {
+	hits := map[string]int{}
+	fail := true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits[r.URL.Path]++
+		if r.URL.Path == "/.well-known/oauth-authorization-server" {
+			if fail {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, _ = w.Write([]byte(`{"authorization_endpoint":"http://as/authorize","token_endpoint":"http://as/token"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"resource":"http://rs/mcp"}`))
+	}))
+	defer srv.Close()
+	ctx := WithDiscoveryCache(context.Background())
+
+	if _, err := discover(ctx, srv.Client(), srv.URL); err == nil {
+		t.Fatal("a failing discovery should error")
+	}
+	fail = false
+	for i := 0; i < 2; i++ {
+		d, err := discover(ctx, srv.Client(), srv.URL)
+		if err != nil || d.tokenEndpoint != "http://as/token" || d.resource != "http://rs/mcp" {
+			t.Fatalf("discover (call %d) = %+v, %v", i+1, d, err)
+		}
+	}
+	if hits["/.well-known/oauth-authorization-server"] != 2 || hits["/.well-known/oauth-protected-resource"] != 1 {
+		t.Errorf("hits = %v, want the failure retried and the success cached", hits)
+	}
+
+	if _, err := discover(context.Background(), srv.Client(), srv.URL); err != nil {
+		t.Fatal(err)
+	}
+	if hits["/.well-known/oauth-authorization-server"] != 3 {
+		t.Errorf("a context without a cache should discover afresh: %v", hits)
+	}
+}

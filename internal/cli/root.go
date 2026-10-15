@@ -141,6 +141,7 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 			rt.IsTTY = output.IsTerminal(os.Stdout)
 
 			ctx := clictx.WithLogger(cmd.Context(), logger)
+			ctx = api.WithDiscoveryCache(ctx)
 			rt.Slugs = api.NewSlugResolver(ctx, &rt, credResolver, getenv)
 			ctx = clictx.WithRuntime(ctx, &rt)
 			cmd.SetContext(ctx)

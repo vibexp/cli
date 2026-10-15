@@ -93,7 +93,8 @@ directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
   `GET /api/v1/teams`, the project by `GET /api/v1/{team}/projects/{slug}`. The
   resolver opens the credential store and builds its own client only on its
   first lookup, so it does not matter whether a command builds its client or
-  its path first. The UUID is written back to the runtime,
+  its path first. Its client and the command's share one OAuth discovery per
+  invocation (`api.WithDiscoveryCache`, installed by the root). The UUID is written back to the runtime,
   so a command looks each up at most once, a UUID never triggers a request, and
   a command that is not team-scoped (`team list`, `whoami`) never looks up at
   all. An unknown slug is a usage error pointing at `vibexp team list` /
