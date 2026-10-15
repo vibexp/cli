@@ -424,6 +424,21 @@ vibexp search "retry backoff" --type prompts --type memories # narrow by type
 vibexp search "auth" --project my-proj --format json         # scope + raw envelope
 ```
 
+`--summary` answers the question from the team's top results instead of listing
+them (AI Summary, platform v0.14.0+). It prints the markdown answer raw, then a
+numbered source list matching its `[n]` citations; `--format json` keeps the full
+response. It takes `--type` and `--project` but not `--limit`/`--page`, and it
+needs AI summaries enabled and a model provider configured for the team (team
+settings) — otherwise it says which one is missing:
+
+```bash
+vibexp search "how do we configure retries" --summary
+vibexp search "how do we configure retries" --summary --type memories --project my-proj
+vibexp search "release process" --summary --format json --jq '.sources[].title'
+```
+
+The summary waits up to 90s for the model unless `--timeout` is given.
+
 ### Attachments
 
 Upload files as attachments, streamed as `multipart/form-data` so memory stays
