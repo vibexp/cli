@@ -182,6 +182,7 @@ func TestTeamScopedCommandsResolveSlugs(t *testing.T) {
 		{"attachment", "list", "--owner-id", ownerID},
 		{"relations", "list", "memory", ownerID},
 		{"metadata", "keys", "--type", "memories"},
+		{"status", "list", "--type", "artifact"},
 		{"metadata", "keys", "--type", "memories", "--project", "web-app"},
 		{"project", "list"},
 		{"api", "GET", "/api/v1/{team}/scoped"},

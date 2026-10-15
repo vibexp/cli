@@ -74,7 +74,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&title, "title", "", "human-readable title (required)")
 	cmd.Flags().StringVar(&description, "description", "", "optional description")
 	cmd.Flags().StringVar(&typ, "type", "", "type category (defaults to general server-side)")
-	cmd.Flags().StringVar(&status, "status", "", "initial status")
+	cmd.Flags().StringVar(&status, "status", "", "initial status (see: vibexp status list --type artifact)")
 	resource.AddLabelFlags(cmd, &labels, false)
 	resource.AddMetadataFlags(cmd, &meta, false)
 	return cmd

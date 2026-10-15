@@ -68,7 +68,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&title, "title", "", "new title")
 	cmd.Flags().StringVar(&description, "description", "", "new description")
 	cmd.Flags().StringVar(&typ, "type", "", "new type category")
-	cmd.Flags().StringVar(&status, "status", "", "new status")
+	cmd.Flags().StringVar(&status, "status", "", "new status (see: vibexp status list --type artifact)")
 	resource.AddLabelFlags(cmd, &labels, true)
 	resource.AddMetadataFlags(cmd, &meta, true)
 	cmd.Flags().StringVar(&changeSummary, "change-summary", "", "summary recorded on the version snapshot")

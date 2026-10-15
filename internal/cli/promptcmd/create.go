@@ -72,7 +72,7 @@ func newCreate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&name, "name", "", "human-readable name (required)")
 	cmd.Flags().StringVar(&description, "description", "", "optional description")
 	cmd.Flags().StringArrayVar(&labels, "label", nil, "label for categorizing (repeatable)")
-	cmd.Flags().StringVar(&status, "status", "", "initial status")
+	cmd.Flags().StringVar(&status, "status", "", "initial status (see: vibexp status list --type prompt)")
 	cmd.Flags().Bool("mcp-expose", true, "expose this prompt via MCP tools")
 	return cmd
 }

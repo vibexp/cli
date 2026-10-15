@@ -234,8 +234,8 @@ func TestIsUUIDIsCanonicalOnly(t *testing.T) {
 		"acme":                   false,
 		strings.Repeat("a", 36):  false,
 	} {
-		if got := isUUID(v); got != want {
-			t.Errorf("isUUID(%q) = %v, want %v", v, got, want)
+		if got := IsUUID(v); got != want {
+			t.Errorf("IsUUID(%q) = %v, want %v", v, got, want)
 		}
 	}
 }

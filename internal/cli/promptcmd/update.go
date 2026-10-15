@@ -69,7 +69,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	cmd.Flags().StringVar(&name, "name", "", "new name")
 	cmd.Flags().StringVar(&description, "description", "", "new description")
 	cmd.Flags().StringArrayVar(&labels, "label", nil, "replacement label (repeatable)")
-	cmd.Flags().StringVar(&status, "status", "", "new status")
+	cmd.Flags().StringVar(&status, "status", "", "new status (see: vibexp status list --type prompt)")
 	cmd.Flags().Bool("mcp-expose", true, "expose this prompt via MCP tools")
 	return cmd
 }

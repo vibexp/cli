@@ -73,7 +73,7 @@ func newUpdate(resolve resource.CredResolver, getenv config.Getenv) *cobra.Comma
 	}
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "file with new content, or '-' for stdin")
 	cmd.Flags().StringVar(&title, "title", "", titleUsage+`; "" clears it`)
-	cmd.Flags().StringVar(&status, "status", "", "new status")
+	cmd.Flags().StringVar(&status, "status", "", "new status (see: vibexp status list --type memory)")
 	resource.AddLabelFlags(cmd, &labels, true)
 	resource.AddMetadataFlags(cmd, &meta, true)
 	return cmd

@@ -501,6 +501,25 @@ vibexp relations seed                                   # AI-propose edges from 
 Relation types are `governed-by` · `built-from` · `explained-by` · `supersedes`;
 origin is `human` or `ai`; status is `suggested` or `confirmed`.
 
+### Statuses
+
+The values `--status` accepts on `create`/`update` come from the team's status
+catalog (platform v0.15.0+): the built-in system statuses plus the team's own
+custom ones, per resource type. `--type` is singular here — `prompt`,
+`artifact`, `blueprint` or `memory`.
+
+```bash
+vibexp status list --type artifact                    # system first, then custom; USAGE = resources using it
+vibexp status create --type artifact --slug in-review --name "In review"   # owner/admin
+vibexp status rename in-review --type artifact --name "Under review"       # or pass the status id
+vibexp status delete in-review --type artifact --yes  # its resources move to the default status
+```
+
+A slug is immutable, and system statuses cannot be renamed or deleted. Deleting
+a custom status moves every resource carrying it to `draft` (prompts) or
+`active` (everything else) and says how many moved; a locked resource carrying
+it blocks the delete.
+
 ## Escape hatch: `vibexp api`
 
 Reach any of the API's endpoints directly (like `gh api`), with the active
