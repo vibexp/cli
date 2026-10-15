@@ -220,6 +220,7 @@ vibexp memory list --tags go --tags cli             # tag filter (values OR)
 vibexp memory list --metadata env=prod --tags go    # keys AND, values within a key OR
 vibexp blueprint list --metadata spec.type=api --stale --limit 10
 vibexp artifact list --labels onboarding --labels api   # label filter (any of them)
+vibexp prompt list --locked                         # only locked resources
 
 # What's gone stale this sprint, as TSV for a script?
 vibexp memory list --stale --limit 100 | cut -f1,2
@@ -228,7 +229,8 @@ vibexp memory list --stale --limit 100 | cut -f1,2
 `--stale` and `--labels` are available on `memory`, `prompt`, `blueprint` and
 `artifact` list. `--metadata` is available on the other three but **not** `prompt list` (that
 endpoint has no metadata filter, so the flag is deliberately not offered rather
-than silently ignored); `--tags` is memories-only. Discover what you can filter
+than silently ignored); `--tags` is memories-only; `--locked` is on `prompt`,
+`blueprint` and `artifact` (memories cannot be locked). Discover what you can filter
 on with `vibexp metadata keys` / `vibexp metadata values`.
 
 ### Setting metadata
@@ -291,6 +293,28 @@ confirmations, which share one detail layout — so a script doing
 A resource carries freshness data **only while it is stale**, so every one of
 these cells is empty on a fresh resource — an empty `STALE` cell means fresh,
 not missing.
+
+### Locking
+
+Prompts, blueprints and artifacts can be **locked** to mark them as in use —
+say, by an agent's workflow. A locked resource cannot be deleted, and an update
+may not change its frozen fields (slug, status, project, labels, plus
+`mcp_expose` on prompts, type/metadata on blueprints and artifacts, subtype/path
+on blueprints); content, title/name and description stay editable.
+
+```bash
+vibexp prompt lock greet --comment "used by the release agent"   # --comment is required
+vibexp blueprint lock api-rules --comment "CI depends on it" --project my-proj
+vibexp prompt unlock greet          # the lock holder, or an owner/admin
+vibexp artifact list --locked --project my-proj
+```
+
+`list` shows a `LOCKED` column (last, so existing `cut -f` positions hold),
+empty for unlocked rows; `get` and the write confirmations add `LOCKED_BY`,
+`LOCKED_AT` and `LOCK_COMMENT`. `--format=json` passes the `lock` object
+through (`null` when unlocked). A write refused by a lock exits 1 and says who
+holds it, why, which field was frozen and how to unlock. Lock history is
+reachable with `vibexp api GET /api/v1/{team}/prompts/<slug>/lock/history`.
 
 ### Memories
 

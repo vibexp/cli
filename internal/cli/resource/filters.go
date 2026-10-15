@@ -24,6 +24,8 @@ import (
 //   - Stale → --stale, mapping to freshness=stale (v0.11.0, epic #726).
 //   - Labels → --labels <label> (repeatable), sent comma-joined as labels=;
 //     a resource matches when it carries any of them (v0.13.0, vibexp#938).
+//   - Locked → --locked, mapping to locked=true (v0.15.0, epic #1285).
+//     Prompts, blueprints and artifacts only; memories are not lockable.
 type ListFilters struct {
 	// Metadata exposes --metadata (every noun whose endpoint takes it — not
 	// prompts, whose listPrompts has no metadata param).
@@ -36,6 +38,8 @@ type ListFilters struct {
 	Stale bool
 	// Labels exposes --labels (every curated noun's list endpoint takes it).
 	Labels bool
+	// Locked exposes --locked (the three lockable nouns only).
+	Locked bool
 
 	// Flag values. Named apart from the opt-in fields above so a slip between
 	// the two does not compile.
@@ -43,6 +47,7 @@ type ListFilters struct {
 	tagVals   []string
 	staleSet  bool
 	labelVals []string
+	lockedSet bool
 }
 
 // AddFilterFlags binds the flags f opted into onto cmd.
@@ -64,6 +69,9 @@ func AddFilterFlags(cmd *cobra.Command, f *ListFilters) {
 	if f.Labels {
 		cmd.Flags().StringArrayVar(&f.labelVals, "labels", nil,
 			"filter by label (repeatable; matches resources carrying any of them)")
+	}
+	if f.Locked {
+		cmd.Flags().BoolVar(&f.lockedSet, "locked", false, "only locked resources")
 	}
 }
 
@@ -114,7 +122,7 @@ func (f *ListFilters) ApplyToPath(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if meta == "" && !f.staleSet && len(f.labelVals) == 0 {
+	if meta == "" && !f.staleSet && !f.lockedSet && len(f.labelVals) == 0 {
 		return path, nil
 	}
 	u, err := url.Parse(path)
@@ -132,6 +140,9 @@ func (f *ListFilters) ApplyToPath(path string) (string, error) {
 	}
 	if len(f.labelVals) > 0 {
 		q.Set("labels", strings.Join(f.labelVals, ","))
+	}
+	if f.lockedSet {
+		q.Set("locked", "true")
 	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil

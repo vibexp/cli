@@ -31,8 +31,10 @@ anything; go to the code for detail, not to issue bodies.
   shared `resource.MetadataFlags`, merge-by-default on update; memory list
   also has `--tags`; all four of memory/prompt/blueprint/artifact `list` take
   `--stale` → `freshness=stale` and `--labels` → comma-joined `labels=` (OR), and
-  `prompt list` takes **only** those two, since `listPrompts` has no metadata
-  param; memory/artifact/blueprint `create`/`update` write labels via the shared
+  `prompt list` takes **no** `--metadata`, since `listPrompts` has no metadata
+  param; prompt/blueprint/artifact also have `lock`/`unlock`
+  verbs and a `list --locked` filter (v0.15.0, shared in `resource/lock.go`,
+  423 narrated by `api.Check`); memory/artifact/blueprint `create`/`update` write labels via the shared
   `resource.LabelFlags` (`--label`, sent only when given), prompts keep their
   own `--label`), relations (`vibexp relations` — note the
   plural, the only one),

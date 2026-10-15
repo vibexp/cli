@@ -111,10 +111,28 @@ func TestListFiltersApplyToPathStale(t *testing.T) {
 			path:  "/api/v1/t/prompts",
 			want:  "/api/v1/t/prompts?freshness=stale&labels=x",
 		},
+		{
+			name:  "locked alone",
+			setup: func(f *ListFilters) { f.lockedSet = true },
+			path:  "/api/v1/t/prompts",
+			want:  "/api/v1/t/prompts?locked=true",
+		},
+		{
+			name: "locked composes with stale, labels, metadata and project",
+			setup: func(f *ListFilters) {
+				f.lockedSet = true
+				f.staleSet = true
+				f.labelVals = []string{"x"}
+				f.pairs = []string{"env=prod"}
+			},
+			path: "/api/v1/t/artifacts?project_id=p-1",
+			want: "/api/v1/t/artifacts?freshness=stale&labels=x&locked=true" +
+				"&metadata=%7B%22env%22%3A%5B%22prod%22%5D%7D&project_id=p-1",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := &ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true}
+			f := &ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true, Locked: true}
 			tt.setup(f)
 			got, err := f.ApplyToPath(tt.path)
 			if err != nil {
@@ -151,19 +169,20 @@ func TestAddFilterFlagsBindsOnlyOptedIn(t *testing.T) {
 		want    map[string]bool // flag name -> should be bound
 	}{
 		{
-			name:    "prompts: stale + labels",
-			filters: ListFilters{Stale: true, Labels: true},
-			want:    map[string]bool{"stale": true, "labels": true, "metadata": false, "tags": false},
+			name:    "prompts: stale + labels + locked",
+			filters: ListFilters{Stale: true, Labels: true, Locked: true},
+			want:    map[string]bool{"stale": true, "labels": true, "locked": true, "metadata": false, "tags": false},
 		},
 		{
-			name:    "artifacts and blueprints: metadata + stale + labels",
-			filters: ListFilters{Metadata: true, Stale: true, Labels: true},
-			want:    map[string]bool{"stale": true, "labels": true, "metadata": true, "tags": false},
+			name:    "artifacts and blueprints: metadata + stale + labels + locked",
+			filters: ListFilters{Metadata: true, Stale: true, Labels: true, Locked: true},
+			want:    map[string]bool{"stale": true, "labels": true, "locked": true, "metadata": true, "tags": false},
 		},
 		{
-			name:    "memories: everything",
+			// Memories are not lockable, so they never get --locked.
+			name:    "memories: everything but locked",
 			filters: ListFilters{Metadata: true, Tags: true, Stale: true, Labels: true},
-			want:    map[string]bool{"stale": true, "labels": true, "metadata": true, "tags": true},
+			want:    map[string]bool{"stale": true, "labels": true, "locked": false, "metadata": true, "tags": true},
 		},
 		{
 			// --tags is sugar over the metadata containment param, so without
