@@ -52,7 +52,9 @@ under `--format=json`; the `TableSpec` only drives table/TSV.
    A column that every curated resource carries is declared **once** in
    `internal/cli/resource`, not copied per noun — `resource.FreshnessColumn()`
    for the compact list flag and `resource.WithFreshnessDetail(head, tail)` to
-   splice the full v0.11.0 freshness block into a detail spec. Add the next
+   splice the full v0.11.0 freshness block into a detail spec, and
+   `resource.WriteChannelDetailColumns()` appended at the very end of it for the
+   v0.16.0 write channel (`WRITTEN_VIA`, `ASSISTANT`). Add the next
    such field the same way; a literal copied into four noun packages is four
    places to fix when its gojq expression turns out to be subtly wrong.
 
@@ -111,7 +113,8 @@ answer. The same reasoning is why `freshness` is a strict server-side enum
 
 A noun the platform can lock (prompts, blueprints, artifacts — v0.15.0) wires
 the shared lock pieces from `internal/cli/resource/lock.go`: `LockColumn()` last
-in the list columns, `LockDetailColumns()` last in the detail columns,
+in the list columns, `LockDetailColumns()` last in the detail columns
+(before only the write-channel pair),
 `Locked: true` in its `ListFilters`, and the two verbs
 `resource.NewLockCommand(noun, resolve, getenv, itemPath, itemSpec)` /
 `resource.NewUnlockCommand(…)` in `New`. A 423 `RESOURCE_WRITE_LOCKED` on any

@@ -35,7 +35,7 @@ var columns = []output.Column{
 // fields (the canonical repo-relative `path` and, for imported blueprints, the
 // `source.repo` / short `source.commit_sha` provenance) and the full v0.11.0
 // freshness state the list view reduces to one flag.
-var detailColumns = resource.WithFreshnessDetail(
+var detailColumns = append(resource.WithFreshnessDetail(
 	[]output.Column{
 		{Header: "SLUG", Path: ".slug"},
 		{Header: "TITLE", Path: ".title"},
@@ -47,7 +47,7 @@ var detailColumns = resource.WithFreshnessDetail(
 	append([]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
 	}, resource.LockDetailColumns()...),
-)
+), resource.WriteChannelDetailColumns()...)
 
 // itemSpec renders a single blueprint object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}

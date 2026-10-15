@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vibexp/cli/internal/cli/resource"
 	"github.com/vibexp/cli/internal/clictx"
 	"github.com/vibexp/cli/internal/config"
 	"github.com/vibexp/cli/internal/cred"
@@ -93,12 +94,14 @@ func TestTitleDetailView(t *testing.T) {
 			if err := cmd.ExecuteContext(ctx); err != nil {
 				t.Fatal(err)
 			}
-			// --format=text is headerless TSV in detailColumns order.
+			// --format=text is headerless TSV in detailColumns order; TITLE
+			// sits just before the trailing write-channel pair.
 			row := strings.Split(strings.TrimRight(out.String(), "\n"), "\t")
-			if len(row) != len(detailColumns) || detailColumns[len(detailColumns)-1].Header != "TITLE" {
-				t.Fatalf("row = %q, want %d cells ending in TITLE", out.String(), len(detailColumns))
+			idx := len(detailColumns) - len(resource.WriteChannelDetailColumns()) - 1
+			if len(row) != len(detailColumns) || detailColumns[idx].Header != "TITLE" {
+				t.Fatalf("row = %q, want %d cells with TITLE at %d", out.String(), len(detailColumns), idx)
 			}
-			if got := row[len(row)-1]; got != tc.want {
+			if got := row[idx]; got != tc.want {
 				t.Errorf("TITLE = %q, want %q", got, tc.want)
 			}
 		})

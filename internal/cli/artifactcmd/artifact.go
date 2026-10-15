@@ -33,7 +33,7 @@ var columns = []output.Column{
 // detailColumns drive the single-object views — get, and the create/update/
 // delete confirmations — which carry the full v0.11.0 freshness state the list
 // view reduces to one flag.
-var detailColumns = resource.WithFreshnessDetail(
+var detailColumns = append(resource.WithFreshnessDetail(
 	[]output.Column{
 		{Header: "SLUG", Path: ".slug"},
 		{Header: "TITLE", Path: ".title"},
@@ -42,7 +42,7 @@ var detailColumns = resource.WithFreshnessDetail(
 	append([]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
 	}, resource.LockDetailColumns()...),
-)
+), resource.WriteChannelDetailColumns()...)
 
 // itemSpec renders a single artifact object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}
