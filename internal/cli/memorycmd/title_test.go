@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vibexp/cli/internal/cli/resource"
 	"github.com/vibexp/cli/internal/clictx"
 	"github.com/vibexp/cli/internal/config"
 	"github.com/vibexp/cli/internal/cred"
@@ -96,7 +97,7 @@ func TestTitleDetailView(t *testing.T) {
 			// --format=text is headerless TSV in detailColumns order; TITLE
 			// sits just before the trailing write-channel pair.
 			row := strings.Split(strings.TrimRight(out.String(), "\n"), "\t")
-			idx := len(detailColumns) - 3
+			idx := len(detailColumns) - len(resource.WriteChannelDetailColumns()) - 1
 			if len(row) != len(detailColumns) || detailColumns[idx].Header != "TITLE" {
 				t.Fatalf("row = %q, want %d cells with TITLE at %d", out.String(), len(detailColumns), idx)
 			}

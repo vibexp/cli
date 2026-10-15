@@ -35,8 +35,7 @@ var columns = []output.Column{
 
 // detailColumns drive the single-object views — get, and the create/update/
 // delete confirmations — which carry the full v0.11.0 freshness state the list
-// view reduces to one flag. The v0.16.0 write channel
-// (WRITTEN_VIA, ASSISTANT) goes last, after every existing column.
+// view reduces to one flag.
 var detailColumns = append(resource.WithFreshnessDetail(
 	[]output.Column{
 		{Header: "SLUG", Path: ".slug"},

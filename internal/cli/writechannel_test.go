@@ -138,6 +138,10 @@ func TestWriteChannelListUnchanged(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("%s list exit = %d", c.noun, code)
 		}
+		// A header-only output would make the leak check below vacuous.
+		if lines := strings.Count(strings.TrimRight(out, "\n"), "\n") + 1; lines != 2 {
+			t.Fatalf("%s list rendered %d lines, want a header and one row: %q", c.noun, lines, out)
+		}
 		if h := headerRow(out); slices.Contains(h, "WRITTEN_VIA") || slices.Contains(h, "ASSISTANT") {
 			t.Errorf("%s list headers carry the write channel: %v", c.noun, h)
 		}
