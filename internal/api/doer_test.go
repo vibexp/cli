@@ -119,7 +119,7 @@ func TestDoerSetsUserAgent(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
 	resp, _ := d.Do(req)
 	_ = resp.Body.Close()
-	if !strings.HasPrefix(gotUA, "vibexp-cli/") {
-		t.Errorf("User-Agent = %q, want vibexp-cli/ prefix", gotUA)
+	if !strings.HasPrefix(gotUA, "VibeXP-CLI/") {
+		t.Errorf("User-Agent = %q, want VibeXP-CLI/ prefix", gotUA)
 	}
 }

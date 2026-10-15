@@ -71,7 +71,7 @@ directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
 
 - **Transport (`doer.go`)** — a `Doer` implementing the generated
   `HttpRequestDoer`: a per-request timeout (`--timeout`, default 30s), a
-  `User-Agent: vibexp-cli/<version>`, and bounded exponential-backoff+jitter
+  `User-Agent: VibeXP-CLI/<version>` (the prefix the platform matches to attribute API-key requests to the `cli` channel), and bounded exponential-backoff+jitter
   retries (3 attempts, cap 5s, `Retry-After` honored) on **429/5xx/transport
   errors for safe methods only** (GET/HEAD). POST/PUT/PATCH/DELETE never retry.
 - **Auth editor (`factory.go`)** — a `RequestEditorFn` that sets
