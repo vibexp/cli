@@ -34,8 +34,9 @@ var columns = []output.Column{
 // delete confirmations — which additionally surface the v0.8.0 file-fidelity
 // fields (the canonical repo-relative `path` and, for imported blueprints, the
 // `source.repo` / short `source.commit_sha` provenance) and the full v0.11.0
-// freshness state the list view reduces to one flag.
-var detailColumns = resource.WithFreshnessDetail(
+// freshness state the list view reduces to one flag. The v0.16.0 write channel
+// (WRITTEN_VIA, ASSISTANT) goes last, after every existing column.
+var detailColumns = append(resource.WithFreshnessDetail(
 	[]output.Column{
 		{Header: "SLUG", Path: ".slug"},
 		{Header: "TITLE", Path: ".title"},
@@ -47,7 +48,7 @@ var detailColumns = resource.WithFreshnessDetail(
 	append([]output.Column{
 		{Header: "UPDATED", Path: ".updated_at"},
 	}, resource.LockDetailColumns()...),
-)
+), resource.WriteChannelDetailColumns()...)
 
 // itemSpec renders a single blueprint object.
 var itemSpec = output.TableSpec{Rows: ".", Columns: detailColumns}

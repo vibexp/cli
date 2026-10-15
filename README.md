@@ -294,6 +294,18 @@ A resource carries freshness data **only while it is stale**, so every one of
 these cells is empty on a fresh resource — an empty `STALE` cell means fresh,
 not missing.
 
+### Write channel in output
+
+The single-object views of memories, prompts, blueprints and artifacts end with
+two more columns, recorded by the server on every write (platform v0.16.0):
+`WRITTEN_VIA`, the channel of the last write (`web` · `cli` · `mcp` · `api`),
+and `ASSISTANT`, the name the MCP client reported, set only for `mcp` writes.
+As with freshness, that is `get` and the write confirmations, and the columns
+come last, so existing `cut -f` positions hold. An empty cell means the channel
+was not recorded — an older write, or a server before v0.16.0. `list` leaves
+them out; `--format=json` carries `last_write_source` and
+`last_write_assistant_name` as the server sent them.
+
 ### Locking
 
 Prompts, blueprints and artifacts can be **locked** to mark them as in use —
