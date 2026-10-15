@@ -24,6 +24,10 @@ func New(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 func newList(resolve resource.CredResolver, getenv config.Getenv) *cobra.Command {
 	return resource.NewListCommand(resolve, getenv, "List teams you are a member of", resource.ListConfig{
 		PathFor: func(_ *config.Runtime) (string, error) { return "/api/v1/teams", nil },
+		// listTeams takes only page/page_size: it ignores limit and has no
+		// offset.
+		PageSizeParam: "page_size",
+		NoOffset:      true,
 		// Membership is summarized via permissions (never role — team access is
 		// gated on the permissions array).
 		Spec: output.TableSpec{

@@ -41,6 +41,13 @@ func TestNewExposesListAndAudit(t *testing.T) {
 			t.Errorf("%q does not bind the pagination flags", use)
 		}
 	}
+	// listTeams takes no offset; the audit endpoint does.
+	if sub(t, cmd, "list").Flags().Lookup("offset") != nil {
+		t.Error("team list must not bind --offset")
+	}
+	if sub(t, cmd, "audit").Flags().Lookup("offset") == nil {
+		t.Error("team audit must keep --offset")
+	}
 	// The audit trail needs platform v0.12.0+; the help must say so, since an
 	// older deployment answers with a 404 that reads like a CLI bug.
 	if short := sub(t, cmd, "audit").Short; !strings.Contains(short, "v0.12.0") {

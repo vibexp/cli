@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/vibexp/cli/internal/api"
 	"github.com/vibexp/cli/internal/cli/resource"
@@ -94,7 +97,7 @@ func TestFetchAllPagesStopRules(t *testing.T) {
 			hits := 0
 			srv := pageServer(t, tt.total, tt.size, tt.meta, &hits)
 			defer srv.Close()
-			items, notList, err := resource.FetchAllPages(context.Background(), rawClient(t, srv), tt.path, nil)
+			items, notList, err := resource.FetchAllPages(context.Background(), rawClient(t, srv), tt.path, resource.DefaultPageSizeParam, nil)
 			if err != nil || notList != nil {
 				t.Fatalf("FetchAllPages err=%v notList=%s", err, notList)
 			}
@@ -119,14 +122,14 @@ func TestFetchAllPagesNotAListAndErrors(t *testing.T) {
 	defer srv.Close()
 	c := rawClient(t, srv)
 
-	items, notList, err := resource.FetchAllPages(context.Background(), c, "/single", nil)
+	items, notList, err := resource.FetchAllPages(context.Background(), c, "/single", resource.DefaultPageSizeParam, nil)
 	if err != nil || items != nil || string(notList) != `{"id":"x"}` {
 		t.Errorf("non-list: items=%v notList=%s err=%v", items, notList, err)
 	}
-	if _, _, err := resource.FetchAllPages(context.Background(), c, "/bad", nil); !strings.Contains(fmt.Sprint(err), "limit too large") {
+	if _, _, err := resource.FetchAllPages(context.Background(), c, "/bad", resource.DefaultPageSizeParam, nil); !strings.Contains(fmt.Sprint(err), "limit too large") {
 		t.Errorf("400 not surfaced: %v", err)
 	}
-	if _, _, err := resource.FetchAllPages(context.Background(), c, "%zz", nil); exitcode.FromError(err) != exitcode.UsageErr {
+	if _, _, err := resource.FetchAllPages(context.Background(), c, "%zz", resource.DefaultPageSizeParam, nil); exitcode.FromError(err) != exitcode.UsageErr {
 		t.Errorf("bad path exit = %d, want 2", exitcode.FromError(err))
 	}
 }
@@ -201,5 +204,68 @@ func TestRunListAllNotAList(t *testing.T) {
 	out, _, code := runList(t, srv, "json", "--all")
 	if code != 0 || !strings.Contains(out, `"only"`) {
 		t.Errorf("non-list --all: code=%d out=%q", code, out)
+	}
+}
+
+// runListCfg executes a list command built from cfg (nil page = an unpaginated
+// endpoint run through RunList directly) and returns every query srv received.
+func runListCfg(t *testing.T, cfg resource.ListConfig, paginated bool, args ...string) ([]url.Values, string, int) {
+	t.Helper()
+	var queries []url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query())
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"things":[{"id":"t1"}],"page":1,"page_size":1,"total_count":3}`))
+	}))
+	defer srv.Close()
+	cfg.PathFor = func(*config.Runtime) (string, error) { return "/api/v1/things", nil }
+	cfg.Spec = output.TableSpec{Rows: resource.ListRows("things"), Columns: []output.Column{{Header: "ID", Path: ".id"}}}
+	var cmd *cobra.Command
+	if paginated {
+		cmd = resource.NewListCommand(credResolver(t), fakeEnv, "List things", cfg)
+	} else {
+		cmd = &cobra.Command{Use: "list", RunE: func(cmd *cobra.Command, _ []string) error {
+			return resource.RunList(cmd, credResolver(t), fakeEnv, cfg, nil)
+		}}
+	}
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetArgs(args)
+	cmd.SilenceUsage, cmd.SilenceErrors = true, true
+	ctx := clictx.WithRuntime(context.Background(), &config.Runtime{BaseURL: srv.URL, Format: "json"})
+	err := cmd.ExecuteContext(ctx)
+	return queries, errOut.String(), exitcode.FromError(err)
+}
+
+// PageSizeParam renames the page-size param on a single page and on every page
+// of the --all walk (listTeams reads page_size and ignores limit).
+func TestRunListPageSizeParam(t *testing.T) {
+	cfg := resource.ListConfig{PageSizeParam: "page_size"}
+	for _, args := range [][]string{{"--limit", "1"}, {"--all", "--limit", "1"}} {
+		queries, errOut, code := runListCfg(t, cfg, true, args...)
+		if code != 0 || len(queries) == 0 {
+			t.Fatalf("%v: code=%d stderr=%q", args, code, errOut)
+		}
+		for _, q := range queries {
+			if q.Get("page_size") != "1" || q.Has("limit") {
+				t.Errorf("%v: query = %v, want page_size=1 and no limit", args, q)
+			}
+		}
+	}
+}
+
+// A nil Pagination is an unpaginated endpoint: no page params are sent and a
+// response that looks partial gets no hint pointing at flags it does not have.
+func TestRunListWithoutPagination(t *testing.T) {
+	queries, errOut, code := runListCfg(t, resource.ListConfig{}, false)
+	if code != 0 || len(queries) != 1 {
+		t.Fatalf("code=%d requests=%d stderr=%q", code, len(queries), errOut)
+	}
+	if len(queries[0]) != 0 {
+		t.Errorf("query = %v, want none", queries[0])
+	}
+	if errOut != "" {
+		t.Errorf("stderr = %q, want no partial-page hint", errOut)
 	}
 }

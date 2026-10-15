@@ -20,20 +20,27 @@ import (
 // none.
 const DefaultPageLimit = 50
 
+// DefaultPageSizeParam is the query param most list endpoints read their page
+// size from.
+const DefaultPageSizeParam = "limit"
+
 // FetchAllPages walks a page-based GET list endpoint, incrementing `page` until
 // a short/empty page or the response's own total_pages, and returns the union
 // of every page's items in order. It is the one page walk behind both
 // `vibexp api --paginate` and the resource `list --all` flag.
 //
+// sizeParam is the query param the endpoint reads its page size from
+// (DefaultPageSizeParam, or "page_size" for listTeams).
+//
 // When the first page has no recognizable list field, items is nil and
 // notList carries that page's raw body, so the caller can render it as-is.
-func FetchAllPages(ctx context.Context, client *api.RawClient, path string, hdr http.Header) (items []json.RawMessage, notList []byte, err error) {
+func FetchAllPages(ctx context.Context, client *api.RawClient, path, sizeParam string, hdr http.Header) (items []json.RawMessage, notList []byte, err error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return nil, nil, exitcode.Usage("invalid path %q: %v", path, err)
 	}
 	q := u.Query()
-	limit, startPage := walkStart(q)
+	limit, startPage := walkStart(q, sizeParam)
 
 	items = []json.RawMessage{}
 	for page := startPage; ; page++ {
@@ -60,14 +67,14 @@ func FetchAllPages(ctx context.Context, client *api.RawClient, path string, hdr 
 	return items, nil, nil
 }
 
-// walkStart reads the page size and first page from a list query, setting the
-// default limit on q when it has none.
-func walkStart(q url.Values) (limit, startPage int) {
+// walkStart reads the page size (from sizeParam) and first page from a list
+// query, setting the default page size on q when it has none.
+func walkStart(q url.Values, sizeParam string) (limit, startPage int) {
 	limit, startPage = DefaultPageLimit, 1
-	if n, err := strconv.Atoi(q.Get("limit")); err == nil && n > 0 {
+	if n, err := strconv.Atoi(q.Get(sizeParam)); err == nil && n > 0 {
 		limit = n
-	} else if q.Get("limit") == "" {
-		q.Set("limit", strconv.Itoa(limit))
+	} else if q.Get(sizeParam) == "" {
+		q.Set(sizeParam, strconv.Itoa(limit))
 	}
 	if n, err := strconv.Atoi(q.Get("page")); err == nil && n > 0 {
 		startPage = n

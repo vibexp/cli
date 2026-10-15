@@ -96,11 +96,21 @@ func TestTeamListPaginationFlagsMapToQuery(t *testing.T) {
 	defer srv.Close()
 	cfg, cs := apiFixture(t, srv.URL, "")
 
-	if _, _, code := runAuth(t, cfg, cs, nil, "", "team", "list", "--limit", "5", "--page", "2", "--offset", "10"); code != 0 {
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "team", "list", "--limit", "5", "--page", "2"); code != 0 {
 		t.Fatalf("exit = %d", code)
 	}
-	if q.Get("limit") != "5" || q.Get("page") != "2" || q.Get("offset") != "10" {
+	// listTeams reads page_size and ignores limit.
+	if q.Get("page_size") != "5" || q.Get("page") != "2" || q.Has("limit") {
 		t.Errorf("pagination not mapped to query: %v", q)
+	}
+
+	// listTeams takes no offset, so --offset is not a flag: exit 2, nothing sent.
+	q = nil
+	if _, _, code := runAuth(t, cfg, cs, nil, "", "team", "list", "--offset", "10"); code != exitcode.UsageErr {
+		t.Errorf("--offset exit = %d, want 2", code)
+	}
+	if q != nil {
+		t.Errorf("--offset still sent a request: %v", q)
 	}
 }
 

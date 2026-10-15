@@ -70,3 +70,19 @@ func TestNamedListCommandBindsFilterFlagsWhenOptedIn(t *testing.T) {
 		}
 	}
 }
+
+// NoOffset is for an endpoint with only page and page size (listTeams):
+// --offset is then not a flag at all, so it can never be sent and ignored.
+func TestNoOffsetLeavesOffsetUnbound(t *testing.T) {
+	cfg := listCfg()
+	cfg.NoOffset = true
+	cmd := resource.NewListCommand(nil, nil, "List things", cfg)
+	if cmd.Flags().Lookup("offset") != nil {
+		t.Error("--offset bound despite NoOffset")
+	}
+	for _, f := range []string{"limit", "page", "all"} {
+		if cmd.Flags().Lookup(f) == nil {
+			t.Errorf("--%s not bound", f)
+		}
+	}
+}
