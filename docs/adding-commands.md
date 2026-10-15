@@ -101,7 +101,7 @@ Filters: &resource.ListFilters{Metadata: true, Tags: true, Stale: true, Labels: 
 | `Locked` | `--locked` | `locked=true` — prompts, blueprints and artifacts only (memories are not lockable) | platform v0.15.0 |
 
 **Opt in only to what the endpoint takes.** `listPrompts` has no `metadata`
-param, so `promptcmd` sets only `Stale` and `Labels` — binding `--metadata` there would let
+param, so `promptcmd` does not set `Metadata` — binding `--metadata` there would let
 a user narrow a list and receive the unfiltered one, which reads like a real
 answer. The same reasoning is why `freshness` is a strict server-side enum
 (anything but `stale` is a 400) and why `--stale` is a bool rather than a

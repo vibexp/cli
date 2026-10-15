@@ -47,9 +47,10 @@ func NewLockCommand(noun string, resolve CredResolver, getenv config.Getenv, ite
 	cmd := &cobra.Command{
 		Use:   "lock <slug>",
 		Short: "Lock a " + noun + " to mark it as in use",
-		Long: "Lock a " + noun + " so it cannot be deleted, renamed or moved; its content\n" +
-			"stays editable. --comment says why (required). Only the lock holder, or an\n" +
-			"owner/admin, can unlock it.",
+		Long: "Lock a " + noun + " so it cannot be deleted, renamed, moved or have its\n" +
+			"status, labels or other frozen fields changed (see README → Locking); its\n" +
+			"content stays editable. --comment says why (required). Only the lock holder,\n" +
+			"or an owner/admin, can unlock it.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			comment = strings.TrimSpace(comment)
