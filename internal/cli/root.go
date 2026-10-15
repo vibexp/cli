@@ -89,6 +89,15 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 		getenv = os.Getenv
 	}
 
+	// credResolver hands auth subcommands (and the slug resolver) the effective
+	// credential store.
+	credResolver := func() (*cred.Store, error) {
+		if opts.CredStore != nil {
+			return opts.CredStore, nil
+		}
+		return cred.DefaultStore()
+	}
+
 	root := &cobra.Command{
 		Use:           "vibexp",
 		Short:         "VibeXP command-line interface",
@@ -132,6 +141,7 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 			rt.IsTTY = output.IsTerminal(os.Stdout)
 
 			ctx := clictx.WithLogger(cmd.Context(), logger)
+			rt.Slugs = api.NewSlugResolver(ctx, &rt, credResolver, getenv)
 			ctx = clictx.WithRuntime(ctx, &rt)
 			cmd.SetContext(ctx)
 
@@ -170,13 +180,6 @@ func newRoot(opts Options) (*cobra.Command, *rootState) {
 			return opts.Store, nil
 		}
 		return config.DefaultStore()
-	}
-	// credResolver hands auth subcommands the effective credential store.
-	credResolver := func() (*cred.Store, error) {
-		if opts.CredStore != nil {
-			return opts.CredStore, nil
-		}
-		return cred.DefaultStore()
 	}
 
 	root.AddCommand(configcmd.New(storeResolver, getenv))

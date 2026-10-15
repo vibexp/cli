@@ -139,9 +139,8 @@ or sent, and `AddTo` has no error to return. `promptcmd` predates the helper and
   access decision use the `permissions` array.
 - **`{team}` / scope** resolves via `api.Team(rt)` / `api.Project(rt)`
   (flag > env > context); a missing required scope is a **usage error (exit 2)**.
-  A slug is looked up over the command's own client, so call them only **after**
-  `resource.RuntimeAndClient` / `resource.Client` (a list's `PathFor` already runs
-  after it); called earlier, a slug fails closed with exit 1. Use
+  A slug is looked up through the resolver the root installs on the runtime, so
+  they can be called before or after the command builds its client. Use
   `api.OptionalProject(rt)` for a project that only narrows the results.
 - **Column paths are gojq expressions** applied per row — you can transform
   inline (e.g. `.permissions | join(",")`).

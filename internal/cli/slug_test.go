@@ -127,3 +127,72 @@ func TestUnscopedCommandSkipsTeamLookup(t *testing.T) {
 		t.Errorf("team list should make only its own request, got %v", cap.paths)
 	}
 }
+
+// guardServer resolves the "acme"/"web-app" slugs and answers any other path
+// under the team UUID with an empty, list-shaped body. A path that still
+// carries a slug 404s.
+func guardServer(t *testing.T, paths *[]string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*paths = append(*paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/api/v1/teams":
+			_, _ = w.Write([]byte(`{"teams":[{"id":"` + acmeTeamID + `","slug":"acme","name":"Acme"}],"total_count":1,"page":1,"page_size":100}`))
+		case r.URL.Path == "/api/v1/"+acmeTeamID+"/projects/web-app":
+			_, _ = w.Write([]byte(`{"id":"` + webAppProjID + `","slug":"web-app"}`))
+		case strings.HasPrefix(r.URL.Path, "/api/v1/"+acmeTeamID+"/"):
+			_, _ = w.Write([]byte(`{"page":1,"per_page":50,"total_count":0,"total_pages":1}`))
+		default:
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"title":"Not Found","status":404,"detail":"not found"}`))
+		}
+	}))
+}
+
+// TestTeamScopedCommandsResolveSlugs guards every team-scoped command against
+// sending a slug where REST takes a UUID, whatever order the command builds
+// its client and path in.
+func TestTeamScopedCommandsResolveSlugs(t *testing.T) {
+	const ownerID = "0f1e2d3c-4b5a-4968-8776-655443322110"
+	for _, args := range [][]string{
+		{"prompt", "get", "greet"},
+		{"prompt", "list"},
+		{"memory", "list"},
+		{"memory", "list", "--project", "web-app"},
+		{"memory", "get", ownerID},
+		{"blueprint", "get", "bp", "--project", "web-app"},
+		{"artifact", "get", "art", "--project", "web-app"},
+		{"feed", "list"},
+		{"search", "hello"},
+		{"search", "hello", "--project", "web-app"},
+		{"attachment", "list", "--owner-id", ownerID},
+		{"relations", "list", "memory", ownerID},
+		{"metadata", "keys", "--type", "memories"},
+		{"metadata", "keys", "--type", "memories", "--project", "web-app"},
+		{"project", "list"},
+		{"api", "GET", "/api/v1/{team}/scoped"},
+	} {
+		name := strings.Join(args, " ")
+		t.Run(name, func(t *testing.T) {
+			var paths []string
+			srv := guardServer(t, &paths)
+			defer srv.Close()
+			cfg, cs := apiFixture(t, srv.URL, "")
+
+			argv := append([]string{"--format", "json", "--team", "acme"}, args...)
+			if _, errOut, code := runAuth(t, cfg, cs, nil, "", argv...); code != 0 {
+				t.Fatalf("exit = %d, stderr=%q, requests=%v", code, errOut, paths)
+			}
+			if len(paths) < 2 || paths[0] != "/api/v1/teams" {
+				t.Fatalf("requests = %v, want one team lookup then the command's own", paths)
+			}
+			for _, p := range paths[1:] {
+				if !strings.HasPrefix(p, "/api/v1/"+acmeTeamID+"/") {
+					t.Errorf("request path %q is not under the team UUID (requests %v)", p, paths)
+				}
+			}
+		})
+	}
+}

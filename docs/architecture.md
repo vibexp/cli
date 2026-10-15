@@ -88,9 +88,12 @@ directly. `api.New(ctx, rt, credStore, getenv)` returns a ready
 - **Resolution (`resolve.go`)** — `api.Team(rt)` / `api.Project(rt)` return the
   already-precedence-resolved team/project id (flag > env > context), or a usage
   error (exit 2) naming all three ways to set it. REST paths take only a UUID,
-  so a slug is resolved lazily through the `config.SlugResolver` that `NewRaw`
-  installs on the runtime: the team by paging `GET /api/v1/teams`, the project by
-  `GET /api/v1/{team}/projects/{slug}`. The UUID is written back to the runtime,
+  so a slug is resolved lazily through the `config.SlugResolver` the root
+  installs on the runtime it builds (`api.NewSlugResolver`): the team by paging
+  `GET /api/v1/teams`, the project by `GET /api/v1/{team}/projects/{slug}`. The
+  resolver opens the credential store and builds its own client only on its
+  first lookup, so it does not matter whether a command builds its client or
+  its path first. The UUID is written back to the runtime,
   so a command looks each up at most once, a UUID never triggers a request, and
   a command that is not team-scoped (`team list`, `whoami`) never looks up at
   all. An unknown slug is a usage error pointing at `vibexp team list` /

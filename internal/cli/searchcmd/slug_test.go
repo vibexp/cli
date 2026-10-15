@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vibexp/cli/internal/api"
 	"github.com/vibexp/cli/internal/clictx"
 	"github.com/vibexp/cli/internal/config"
 	"github.com/vibexp/cli/internal/cred"
@@ -55,13 +56,16 @@ func runSlug(t *testing.T, srv *httptest.Server, rt *config.Runtime) int {
 		}
 		return ""
 	}
-	cmd := New(func() (*cred.Store, error) { return &cred.Store{Path: path}, nil }, getenv)
+	creds := func() (*cred.Store, error) { return &cred.Store{Path: path}, nil }
+	cmd := New(creds, getenv)
 	cmd.SetArgs([]string{"hello"})
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SilenceUsage, cmd.SilenceErrors = true, true
 	rt.BaseURL, rt.Format = srv.URL, "json"
-	return exitcode.FromError(cmd.ExecuteContext(clictx.WithRuntime(context.Background(), rt)))
+	ctx := context.Background()
+	rt.Slugs = api.NewSlugResolver(ctx, rt, creds, getenv) // as the root does
+	return exitcode.FromError(cmd.ExecuteContext(clictx.WithRuntime(ctx, rt)))
 }
 
 func TestSlugsResolveToUUIDs(t *testing.T) {

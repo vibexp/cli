@@ -95,8 +95,6 @@ func RunList(cmd *cobra.Command, resolve CredResolver, getenv config.Getenv, cfg
 	if err != nil {
 		return err
 	}
-	// The client comes first: building it installs the slug resolver PathFor
-	// needs to turn a team or project slug into the UUID the path takes.
 	client, err := Client(ctx, rt, resolve, getenv)
 	if err != nil {
 		return err
