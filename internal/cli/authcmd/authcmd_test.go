@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/vibexp/cli/internal/api"
+	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/exitcode"
 )
 
 // The identity check is a platform request too, so it must identify the CLI
@@ -30,5 +32,22 @@ func TestFetchIdentitySendsTheSharedUserAgent(t *testing.T) {
 	}
 	if !strings.HasPrefix(gotUA, "VibeXP-CLI/") {
 		t.Errorf("User-Agent = %q, want VibeXP-CLI/ prefix", gotUA)
+	}
+}
+
+func TestRequireBaseURLNamesEnvAndContext(t *testing.T) {
+	_, err := requireBaseURL(&config.Runtime{})
+	if code := exitcode.FromError(err); code != exitcode.UsageErr {
+		t.Fatalf("exit = %d, want %d (err %v)", code, exitcode.UsageErr, err)
+	}
+	for _, want := range []string{config.EnvBaseURL, "set-context <name> "} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error should name %q: %q", want, err)
+		}
+	}
+
+	got, err := requireBaseURL(&config.Runtime{BaseURL: "https://example.com"})
+	if err != nil || got != "https://example.com" {
+		t.Errorf("requireBaseURL = %q, %v", got, err)
 	}
 }
