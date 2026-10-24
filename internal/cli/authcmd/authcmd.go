@@ -59,7 +59,7 @@ func requireContextName(rt *config.Runtime) (string, error) {
 // requireBaseURL returns the resolved base URL or a usage error.
 func requireBaseURL(rt *config.Runtime) (string, error) {
 	if rt.BaseURL == "" {
-		return "", exitcode.Usage("no base URL for the active context; set one with: vibexp config set-context %s --base-url <url>", rt.ContextName)
+		return "", api.MissingBaseURLError(rt)
 	}
 	return rt.BaseURL, nil
 }

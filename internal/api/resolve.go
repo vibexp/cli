@@ -89,6 +89,13 @@ func IsUUID(v string) bool {
 	return len(v) == 36 && uuid.Validate(v) == nil
 }
 
+// MissingBaseURLError is the usage error for a runtime with no base URL. It
+// names both ways to set one: the environment (natural in containers, next to
+// the API key) and the context.
+func MissingBaseURLError(rt *config.Runtime) error {
+	return exitcode.Usage("no base URL: set %s, or run: vibexp config set-context %s --base-url <url>", config.EnvBaseURL, contextName(rt))
+}
+
 func contextName(rt *config.Runtime) string {
 	if rt.ContextName == "" {
 		return "<name>"
