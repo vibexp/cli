@@ -4,9 +4,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/vibexp/cli/internal/config"
+	"github.com/vibexp/cli/internal/cred"
 	"github.com/vibexp/cli/internal/exitcode"
 )
 
@@ -152,6 +155,49 @@ func TestProjectListNoTeamIsUsageError(t *testing.T) {
 		t.Fatalf("no-team exit = %d, want 2", code)
 	}
 	for _, want := range []string{"--team", "VIBEXP_TEAM", "set-context"} {
+		if !strings.Contains(errOut, want) {
+			t.Errorf("error should name %q: %q", want, errOut)
+		}
+	}
+}
+
+func TestNoBaseURLIsUsageErrorNamingEnv(t *testing.T) {
+	cases := map[string][]string{
+		"whoami":     {"whoami"},
+		"api":        {"api", "GET", "/api/v1/things"},
+		"auth login": {"auth", "login", "--with-api-key"},
+	}
+	for name, args := range cases {
+		t.Run(name, func(t *testing.T) {
+			cfg, cs := apiFixture(t, "", "") // context "dev" with no base URL
+			_, errOut, code := runAuth(t, cfg, cs, nil, "vxk_api_test_key_123456\n", args...)
+			if code != exitcode.UsageErr {
+				t.Fatalf("no-base-URL exit = %d, want 2: %q", code, errOut)
+			}
+			for _, want := range []string{"VIBEXP_BASE_URL", "set-context dev "} {
+				if !strings.Contains(errOut, want) {
+					t.Errorf("error should name %q: %q", want, errOut)
+				}
+			}
+		})
+	}
+}
+
+func TestNoContextNoBaseURLNamesEnv(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Store{Path: filepath.Join(dir, "config.yaml")} // no config file at all
+	cs := &cred.Store{Path: filepath.Join(dir, "credentials.json")}
+	getenv := func(k string) string {
+		if k == "VIBEXP_API_KEY" {
+			return "vxk_api_test_key_123456"
+		}
+		return ""
+	}
+	_, errOut, code := runAuth(t, cfg, cs, getenv, "", "whoami")
+	if code != exitcode.UsageErr {
+		t.Fatalf("no-context exit = %d, want 2: %q", code, errOut)
+	}
+	for _, want := range []string{"VIBEXP_BASE_URL", "set-context <name> "} {
 		if !strings.Contains(errOut, want) {
 			t.Errorf("error should name %q: %q", want, errOut)
 		}

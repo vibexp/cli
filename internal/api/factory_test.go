@@ -132,3 +132,29 @@ func TestDiscoveryCacheDiscoversOncePerBaseURL(t *testing.T) {
 		t.Errorf("a context without a cache should discover afresh: %v", hits)
 	}
 }
+
+func TestMissingBaseURLNamesEnvAndContext(t *testing.T) {
+	cs := &cred.Store{Path: filepath.Join(t.TempDir(), "credentials.json")}
+	getenv := func(string) string { return "" }
+	newClient := func(rt *config.Runtime) error {
+		_, err := New(context.Background(), rt, cs, getenv)
+		return err
+	}
+	newRaw := func(rt *config.Runtime) error {
+		_, err := NewRaw(context.Background(), rt, cs, getenv)
+		return err
+	}
+	for name, build := range map[string]func(*config.Runtime) error{"New": newClient, "NewRaw": newRaw} {
+		for ctxName, wantCtx := range map[string]string{"dev": "set-context dev ", "": "set-context <name> "} {
+			err := build(&config.Runtime{ContextName: ctxName})
+			if code := exitcode.FromError(err); code != exitcode.UsageErr {
+				t.Fatalf("%s(context %q) exit = %d, want %d (err %v)", name, ctxName, code, exitcode.UsageErr, err)
+			}
+			for _, want := range []string{config.EnvBaseURL, wantCtx} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("%s(context %q) error should name %q: %q", name, ctxName, want, err)
+				}
+			}
+		}
+	}
+}

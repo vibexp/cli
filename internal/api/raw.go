@@ -28,7 +28,7 @@ type requestEditor func(ctx context.Context, req *http.Request) error
 // NewRaw builds a RawClient for the resolved runtime. It does not touch rt.
 func NewRaw(ctx context.Context, rt *config.Runtime, credStore *cred.Store, getenv func(string) string) (*RawClient, error) {
 	if rt.BaseURL == "" {
-		return nil, exitcode.Usage("no base URL for the active context; set one with: vibexp config set-context %s --base-url <url>", contextName(rt))
+		return nil, MissingBaseURLError(rt)
 	}
 	editor, err := authEditor(ctx, rt, credStore, getenv)
 	if err != nil {
